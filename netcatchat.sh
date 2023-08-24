@@ -41,6 +41,14 @@ handle_client_connection() {
         #   blocking.
         netcat -l "$1" 0<> "$2" 1<> "$3"
         echo "Connection opened and closed on port $1"
+
+        # TODO Sometimes dosen't work for some reason.
+        for other_client_port in "${client_ports[@]}"; do
+            if [ "$other_client_port" -ne "$1" ]; then
+                input_fifo="${client_input_fifos[$other_client_port]}"
+                echo "$1 has disconnected" 1<> "$input_fifo"
+            fi
+        done
     done
 }
 
@@ -61,8 +69,8 @@ while true; do
     for client_port in "${client_ports[@]}"; do
         output_fifo="${client_output_fifos[$client_port]}"
 
-        #TODO Make this not have to wait.
-        if read -r -t 1 line < "$output_fifo"; then
+        if read -r -t 0; then
+            read -r line
             message="[$client_port]: $line"
             echo "$message"
 
@@ -72,6 +80,6 @@ while true; do
                     echo "$message" 1<> "$input_fifo"
                 fi
             done
-        fi
+        fi 0<> "$output_fifo"
     done
 done
