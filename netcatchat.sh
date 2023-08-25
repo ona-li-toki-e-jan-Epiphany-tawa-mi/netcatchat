@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO see if the FIFOs can be tossed in some random directory.
-
 ################################################################################
 # MIT License
 # 
@@ -183,23 +181,24 @@ fi
 
 
 run_server() {
+    temporary_directory=$(mktemp -d)
     # Array between client ports and their FIFOs for sending messages.
     client_input_fifos=()
     # Array between client ports and their FIFOs for recieving messages.
     client_output_fifos=()
     # A FIFO for the port distributor subprocess to recieve commands from.
-    distributor_command_input_fifo='commandin'; mkfifo "$distributor_command_input_fifo"
+    distributor_command_input_fifo="$temporary_directory/commandin"; mkfifo "$distributor_command_input_fifo"
 
 
 
     trap '
         log_info "Shutting down..."
 
-        rm "${client_input_fifos[@]}" "${client_output_fifos[@]}" "$distributor_command_input_fifo"
+        rm -rf "$temporary_directory"
 
         pkill -P $$
         exit
-    ' INT
+    ' EXIT
 
 
 
@@ -233,9 +232,9 @@ run_server() {
 
     # Launch subprocess for each client port to handle the connection.
     for client_port in "${client_ports[@]}"; do
-        input_fifo="messagein-$client_port"; client_input_fifos["$client_port"]="$input_fifo"
+        input_fifo="$temporary_directory/messagein-$client_port"; client_input_fifos["$client_port"]="$input_fifo"
         mkfifo "$input_fifo"
-        output_fifo="messageout-$client_port"; client_output_fifos["$client_port"]="$output_fifo"
+        output_fifo="$temporary_directory/messageout-$client_port"; client_output_fifos["$client_port"]="$output_fifo"
         mkfifo "$output_fifo"
     done
     for client_port in "${client_ports[@]}"; do
@@ -318,7 +317,7 @@ run_server() {
 
 
 run_client() {
-    trap 'log_info "Shutting down..."' INT
+    trap 'log_info "Shutting down..."' EXIT
 
     log_info "Connecting to $server_ip:$server_port..."
     port=$(netcat -v -w 0 "$server_ip" "$server_port")
