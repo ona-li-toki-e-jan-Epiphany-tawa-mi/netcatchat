@@ -1,5 +1,31 @@
 #!/usr/bin/env bash
 
+# TODO see if the FIFOs can be tossed in some random directory.
+
+################################################################################
+# MIT License
+# 
+# Copyright (c) 2023 ona-li-toki-e-jan-Epiphany-tawa-mi
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+################################################################################ 
+
 ##
 # Logs an info-level message to the stdout.
 #
@@ -25,7 +51,6 @@ port_regex='^[0-9]+$'
 
 
 
-#TODO Add description.
 print_usage() {
     printf "NAME
 \t%s - simple chat server and client using netcat
@@ -37,7 +62,24 @@ SYNOPSIS
 \t%s -s [-p server_port] [-c client_ports]
 
 DESCRIPTION
-\tTODO
+\tA simple chat server and client that interfaces with netcat. By default,
+\t%s will run in client mode. To run in server mode, specify -s as an
+\targument. 
+
+\tBy default, the client will connect to 127.0.0.1:2000, see the OPTIONS
+\tsection for how to change that.
+
+\tBy default, the server will listen on port 2000 to give out ports 2001-2010
+\tfor clients to connect to. See the OPTIONS section for how to change that.
+
+\tEach client will have the port that they are connected on as their username.
+
+\tThis chat system is extremely basic. It will not check if multiple clients
+\tare connected from the same ip. It will not block or rate-limit spammers.
+\tSomeone could easily use a script to steal all the ports and prevent people
+\tfrom connecting. There is absolutely no mechanism for moderation. No
+\tattempts are made at encryption. Basically, proceed with caution.
+
 
 OPTIONS
 \t-s
@@ -89,7 +131,7 @@ COPYRIGHT:
 SEE ALSO:
 \tGitHub repository:
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
+" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
 }
 
 print_version() {
