@@ -1,18 +1,28 @@
 #!/usr/bin/env bash
 
-#TODO document
+##
+# Logs an info-level message to the stdout.
+#
+# Parameters:
+#   $1 - the message to send.
+#
 log_info() {
     echo "[$(date '+%D %T')] INFO: $1"
 }
 
-#TODO document
+##
+# Logs an error-level message to the stderr.
+#
+# Parameters:
+#   $1 - the message to send.
+#
 log_error() {
     echo "[$(date '+%D %T')] ERROR: $1" 1>&2
 }
 
 
+#TODO add message when user connects.
 
-#TODO Make use system user name or something else.
 
 #TODO Add description.
 print_usage() {
@@ -55,6 +65,13 @@ OPTIONS
 \t-v
 \t\tDisplays version text and exits.
 
+RETURN CODES
+\tIf the command line arguments fail to parse, 1 will be returned. In server
+\tmode, %s will not exit on it's own; no error codes will be returned. In
+\tclient mode, %s will not exit on it's own under normal conditions. If it
+\tfailed to connect, 2 will be returned. If there is no room on the server, or
+\tinvalid data was recieved from the server, 3 will be returned.
+
 AUTHOR
 \tona li toki e jan Epiphany tawa mi.
 
@@ -71,7 +88,7 @@ COPYRIGHT:
 SEE ALSO:
 \tGitHub repository:
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
+" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
 }
 
 print_version() {
@@ -125,7 +142,16 @@ run_server() {
 
 
 
-    # TODO document this.
+    ##
+    # Handles sending and recieving messages from an individual client port.
+    # Will send the !free command to the port distributor when the client closes
+    #   the connection to free up the port.
+    #
+    # Parameters:
+    #   $1 - the client port to handle.
+    #   $2 - the FIFO to send messages to the client with.
+    #   $3 - the FIFO to recieve messages from the client with.
+    #   
     handle_client_connection() {
         while true; do
             log_info "Started listening on port $1"
@@ -134,13 +160,12 @@ run_server() {
             log_info "Connection opened and closed on port $1"
             echo "!free $1" > "$distributor_command_input_fifo" &
 
-            # TODO Sometimes dosen't work for some reason.
-            #for other_client_port in "${client_ports[@]}"; do
-            #    if [ "$other_client_port" -ne "$1" ]; then
-            #        input_fifo="${client_input_fifos[$other_client_port]}"
-            #        log_info "$1 has disconnected" 1<> "$input_fifo"
-            #    fi
-            #done
+            for other_client_port in "${client_ports[@]}"; do
+                if [ "$other_client_port" -ne "$1" ]; then
+                    input_fifo="${client_input_fifos[$other_client_port]}"
+                    echo "$1 has disconnected" 1<> "$input_fifo"
+                fi
+            done
         done
     }
 
@@ -150,32 +175,38 @@ run_server() {
         mkfifo "$input_fifo"
         output_fifo="messageout-$client_port"; client_output_fifos["$client_port"]="$output_fifo"
         mkfifo "$output_fifo"
-
+    done
+    for client_port in "${client_ports[@]}"; do
         handle_client_connection "$client_port" "$input_fifo" "$output_fifo" & 
     done
 
 
 
+    ##
     # Handles telling clients which ports are avalible.
+    #
     distribute_ports() {
         avalible_ports=("${client_ports[@]}")
         active_ports=()
 
         while true; do
-            # Ensures there is something to read so nothing blocks.
-            echo "" > "$distributor_command_input_fifo" &
+            echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
             # Frees ports that are no longer in use.
             while read -r line; do
                 # shellcheck disable=SC2206
                 command_arguments=($line)
 
-                # TODO add error checking.
                 if [ "${#command_arguments[@]}" -ge 2 ] && [ "${command_arguments[0]}" = '!free' ]; then
                     port=${command_arguments[1]}
-                    log_info "Port $port was freed"
 
-                    unset -v "active_ports[$port]"
-                    avalible_ports+=("$port")
+                    if [ "$port" = "${active_ports[$port]}" ]; then
+                        log_info "Port $port was freed"
+
+                        unset -v "active_ports[$port]"
+                        avalible_ports+=("$port")
+                    else
+                        log_error "Attempted to free inactive port $port!"
+                    fi
                 fi
             done < "$distributor_command_input_fifo"
 
@@ -225,19 +256,33 @@ run_server() {
 
 run_client() {
     trap 'log_info "Shutting down..."' INT
+    port_regex='^[0-9]+$'
 
-    #TODO add error checks
     log_info "Connecting to $server_ip:$server_port..."
     port=$(netcat -w 0 "$server_ip" "$server_port" -v)
-    log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-    netcat "$server_ip" "$port" -v
+    
+    if [ "$port" = "" ]; then
+        log_error "Could not connect to $server_ip:$server_port!"
+        exit 2
+    elif [ "$port" -eq -1 ]; then 
+        log_error "No avalible client ports on $server_ip to connect to!"
+        exit 3
+    elif ! [[ "$port" =~ $port_regex ]]; then
+        log_error "Recieved invald port $port from $server_ip:$server_port!"
+        exit 3
+    else
+        log_info "Recieved port $port, reconnecting to $server_ip:$port..."
+        netcat "$server_ip" "$port" -v
+    fi
 }
 
 
 
-# TODO add error thingy here.
 if [ "$type" = "server" ]; then
     run_server
 elif [ "$type" = "client" ]; then
     run_client
+else
+    log_error "Unknown run type '$type'!"
+    exit 1
 fi
