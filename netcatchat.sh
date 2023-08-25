@@ -20,8 +20,9 @@ log_error() {
     echo "[$(date '+%D %T')] ERROR: $1" 1>&2
 }
 
+# A regex that matches ports (really just matches with all integers.)
+port_regex='^[0-9]+$'
 
-#TODO add message when user connects.
 
 
 #TODO Add description.
@@ -105,7 +106,6 @@ server_ip=127.0.0.1
 # either 'client' or 'server'.
 type=client
 
-# TODO add error checks.
 while getopts 'sp:c:i:hv' flag; do
     # shellcheck disable=SC2206
     case "$flag" in
@@ -119,12 +119,31 @@ while getopts 'sp:c:i:hv' flag; do
     esac
 done
 
+option_parsing_failed='false'
+
+if ! [[ "$server_port" =~ $port_regex ]]; then
+    log_error "$0: invalid port $server_port specfied with argument -p"
+    option_parsing_failed='true'
+fi
+
+for client_port in "${client_ports[@]}"; do
+    if ! [[ "$client_port" =~ $port_regex ]]; then
+        log_error "$0: invalid client_port specfied with argument -c"
+        option_parsing_failed='true'
+    fi
+done
+
+# If server_ip (-i) is invalid netcat will catch it.
+if [ "$option_parsing_failed" = 'true' ]; then
+    exit 1
+fi
+
 
 
 run_server() {
-    # Associative array between client ports and their FIFOs for sending messages.
+    # Array between client ports and their FIFOs for sending messages.
     client_input_fifos=()
-    # Associative array between client ports and FIFOs for recieving messages.
+    # Array between client ports and their FIFOs for recieving messages.
     client_output_fifos=()
     # A FIFO for the port distributor subprocess to recieve commands from.
     distributor_command_input_fifo='commandin'; mkfifo "$distributor_command_input_fifo"
@@ -155,6 +174,7 @@ run_server() {
     handle_client_connection() {
         while true; do
             log_info "Started listening on port $1"
+            echo "Welcome!, You are now chatting as: $1" > "$2" &
             netcat -l "$1" 0<> "$2" 1<> "$3"
             
             log_info "Connection opened and closed on port $1"
@@ -177,6 +197,8 @@ run_server() {
         mkfifo "$output_fifo"
     done
     for client_port in "${client_ports[@]}"; do
+        input_fifo="${client_input_fifos["$client_port"]}"
+        output_fifo="${client_output_fifos["$client_port"]}"
         handle_client_connection "$client_port" "$input_fifo" "$output_fifo" & 
     done
 
@@ -239,11 +261,10 @@ run_server() {
                 message="[$client_port]: $line"
                 log_info "$message"
 
+                # Client message is sent back to them as confirmation.
                 for other_client_port in "${client_ports[@]}"; do
-                    if [ "$client_port" -ne "$other_client_port" ]; then
-                        input_fifo="${client_input_fifos[$other_client_port]}"
-                        echo "$message" 1<> "$input_fifo"
-                    fi
+                    input_fifo="${client_input_fifos[$other_client_port]}"
+                    echo "$message" 1<> "$input_fifo"
                 done
             done 0<> "$output_fifo"
         done
@@ -256,10 +277,9 @@ run_server() {
 
 run_client() {
     trap 'log_info "Shutting down..."' INT
-    port_regex='^[0-9]+$'
 
     log_info "Connecting to $server_ip:$server_port..."
-    port=$(netcat -w 0 "$server_ip" "$server_port" -v)
+    port=$(netcat -v -w 0 "$server_ip" "$server_port")
     
     if [ "$port" = "" ]; then
         log_error "Could not connect to $server_ip:$server_port!"
@@ -272,7 +292,7 @@ run_client() {
         exit 3
     else
         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-        netcat "$server_ip" "$port" -v
+        { echo "CONNECTED" ; cat ; } | netcat -v "$server_ip" "$port"
     fi
 }
 
