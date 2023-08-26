@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO Create install script or just some instructions to toss this script /usr/local/bin.
-# TODO See if disabled shellcheck warnings are meaningful.
-
 ################################################################################
 # MIT License
 # 
@@ -185,24 +182,22 @@ print_version() {
 
 # The port that users connect to in order to get a port to chat on.
 server_port=2000
-# shellcheck disable=SC2207
 # (server) The ports that each user uses to send and recieve messages.
-client_ports=({2001..2011})
+client_ports=({2001..2010})
 # (client) IP of the server to connect to.
 server_ip=127.0.0.1
 # either 'client' or 'server'.
 type=client
 
 while getopts 'sp:c:i:hv' flag; do
-    # shellcheck disable=SC2206
     case "$flag" in
-        s) type=server            ;;
-        p) server_port="$OPTARG"  ;;
-        c) client_ports=($OPTARG) ;;
-        i) server_ip="$OPTARG"    ;;
-        h) print_usage;   exit    ;;
-        v) print_version; exit    ;;
-        *) print_usage;   exit 1  ;;
+        s) type=server                                   ;;
+        p) server_port="$OPTARG"                         ;;
+        c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;;
+        i) server_ip="$OPTARG"                           ;;
+        h) print_usage;   exit                           ;;
+        v) print_version; exit                           ;;
+        *) print_usage;   exit 1                         ;;
     esac
 done
 
@@ -224,8 +219,6 @@ done
 if [ "$option_parsing_failed" = 'true' ]; then
     exit 1
 fi
-
-
 
 run_server() {
     temporary_directory=$(mktemp -d)
@@ -330,8 +323,7 @@ run_server() {
             # Handles commands from other processes ran by this script.
             echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
             while read -r line; do
-                # shellcheck disable=SC2206
-                command_arguments=($line)
+                IFS=" " read -r -a command_arguments <<< "$line"
 
                 if [ "${#command_arguments[@]}" -ge 2 ]; then
                     port=${command_arguments[1]}

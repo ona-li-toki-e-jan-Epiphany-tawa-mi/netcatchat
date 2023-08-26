@@ -12,7 +12,15 @@ There is the possiblity for someone to make their own script to connect to the s
 
 I'm considering renting a server/simillar and tossing a netcatchat server on it to run 24/7. If I do, I will put the IP and server port here.
 
-TODO Add install instructions.
+## Installation
+
+netcatchat is just a standalone bash script; you can run it as-is. If you want to run it from the command line from anywhere just by typing "netcatchat", run the following commands on the script file:
+
+```console
+sudo cp netcatchat.sh /usr/local/bin/netcatchat
+sudo chown root:root /usr/local/bin/netcatchat
+sudo chmod u=w,a+rx /usr/local/bin/netcatchat
+```
 
 ## Synopsis
 
