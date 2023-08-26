@@ -342,11 +342,12 @@ run_server() {
                         ;;
                         # Prevents a used port from timing out.
                         !notimeout)
-                            timeoutless_notimeout_ports["$port"]=$port
-
                             timeout="${active_port_timeout_map[$port]}"
+
                             if [ "${#timeout}" -gt 0 ]; then
                                 unset -v "active_port_timeout_map[$port]"
+                            else
+                                timeoutless_notimeout_ports["$port"]=$port
                             fi
                         ;;
                     esac
