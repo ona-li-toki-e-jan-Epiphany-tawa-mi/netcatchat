@@ -1,12 +1,14 @@
 # netcatchat
 
-*NOTE: not finished yet*
+NOTE: not finished yet
 
 netcatchat is a simple command-line chat server and client for Linux using netcat.
 
-This chat system is extremely basic, and I do not plan to extended it. It will not check if multiple clients are connected from the same ip. It will not block or rate-limit spammers. Someone could easily use a script to steal all the ports and prevent people from connecting. There is absolutely no mechanism for moderation. No attempts are made at encryption. Basically, proceed with caution.
+This chat system is extremely basic, and I do not plan to extended it. It will not check if multiple clients are connected from the same ip. It will not block or rate-limit spammers. Someone could easily use a script to steal all the ports and prevent people from connecting. There is absolutely no mechanism for moderation. No attempts are made at encryption (I might actually add e2e encryption.) Basically, proceed with caution.
 
 Each client on the server is identified simply with what port they are connected on; no usernames.
+
+There is the possiblity for someone to make their own script to connect to the server_port and not reconnect on a client port, or connect directly to a client port. There are checks in place to make sure that ports dished out from the server_port are freed if unused and locked (as-in it won't try to give someone that port to connect on as it is busy) if someone decides to directly connect to a client port, so such "attacks" should not be too big of an issue.
 
 I'm considering renting a server/simillar and tossing a netcatchat server on it to run 24/7. If I do, I will put the IP and server port here.
 

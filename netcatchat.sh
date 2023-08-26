@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO try to prevent running netcat until the port is queried by a client.
 # TODO Create install script or just some instructions to toss this script /usr/local/bin.
 # TODO See if disabled shellcheck warnings are meaningful.
 
@@ -119,6 +118,13 @@ DESCRIPTION
 \tfrom connecting. There is absolutely no mechanism for moderation. No
 \tattempts are made at encryption. Basically, proceed with caution.
 
+\tThere is the possiblity for someone to make their own script to connect to
+\tthe server_port and not reconnect on a client port, or connect directly to a
+\tclient port. There are checks in place to make sure that ports dished out
+\tfrom the server_port are freed if unused and locked (as-in it won't try to
+\tgive someone that port to connect on as it is busy) if someone decides to
+\tdirectly connect to a client port, so such \"attacks\" should not be too big
+\tof an issue.
 
 OPTIONS
 \t-s
@@ -181,7 +187,7 @@ print_version() {
 server_port=2000
 # shellcheck disable=SC2207
 # (server) The ports that each user uses to send and recieve messages.
-client_ports=($(seq 2001 2010))
+client_ports=({2001..2011})
 # (client) IP of the server to connect to.
 server_ip=127.0.0.1
 # either 'client' or 'server'.
@@ -307,15 +313,20 @@ run_server() {
         #
         free_port() {
             unset -v "active_ports[$1]"
-            timeout="${active_port_timeout_map[$port]}"
+            timeout="${active_port_timeout_map[$1]}"
             if [ "${#timeout}" -gt 0 ]; then
-                unset -v "active_port_timeout_map[$active_port]"
+                unset -v "active_port_timeout_map[$1]"
             fi
 
             avalible_ports+=("$1")
         }
 
         while true; do
+            # Temporarily stores the ports freed with !free.
+            freed_ports=()
+            # Temporarily stores the ports marked with !notimeout that do not
+            #   have a timeout.
+            timeoutless_notimeout_ports=()
             # Handles commands from other processes ran by this script.
             echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
             while read -r line; do
@@ -331,12 +342,16 @@ run_server() {
                             if [ "$port" = "${active_ports[$port]}" ]; then
                                 free_port "$port"
                                 log_info "Port $port was freed"
+
+                                freed_ports["$port"]="$port"
                             else
                                 log_error "Attempted to free inactive port $port!"
                             fi
                         ;;
-                        # Prevents a port from timing out.
+                        # Prevents a used port from timing out.
                         !notimeout)
+                            timeoutless_notimeout_ports["$port"]=$port
+
                             timeout="${active_port_timeout_map[$port]}"
                             if [ "${#timeout}" -gt 0 ]; then
                                 unset -v "active_port_timeout_map[$port]"
@@ -345,6 +360,35 @@ run_server() {
                     esac
                 fi
             done < "$distributor_command_input_fifo"
+
+            # If we got a !notimeout on an 'avalible' port, that means that 
+            #   someone has connected to it without first connecting to the
+            #   server port. Since the port is in use, we need to mark it as
+            #   active.
+            for notimeout_port in "${timeoutless_notimeout_ports[@]}"; do
+                # Freed ports are guaranteed inactive.
+                if [ "${#freed_ports[$notimeout_port]}" -gt 0 ]; then
+                    continue
+                fi
+
+                was_port_locked='false'
+
+                for (( i=0; i < ${#avalible_ports[@]}; ++i )); do
+                    avalible_port=${avalible_ports[$i]}
+                    if [ "$notimeout_port" = "$avalible_port" ]; then
+                        was_port_locked='true'
+                        unset -v 'avalible_ports[i]'; 
+                        active_ports["$avalible_port"]="$avalible_port"
+
+                        log_info "Found unexpected connection on port $avalible_port; marking as active"
+                        break
+                    fi
+                done
+
+                if [ "$was_port_locked" = 'true' ]; then
+                    avalible_ports=("${avalible_ports[@]}")
+                fi
+            done
 
             # Frees ports that no one has connected to.
             for active_port in "${active_ports[@]}"; do
@@ -362,7 +406,7 @@ run_server() {
 
             # Distributes ports.
             if [ "${#avalible_ports[@]}" -gt 0 ]; then
-                port="${avalible_ports[0]}"
+                port=${avalible_ports[0]}
                 echo "$port" | netcat -l -w 0 "$server_port" > /dev/null
                 
                 log_info "Gave out port $port"
@@ -383,7 +427,7 @@ run_server() {
     # Handles sending messages between connected clients.
     while true; do
         for client_port in "${client_ports[@]}"; do
-            output_fifo="${client_output_fifos[$client_port]}"
+            output_fifo=${client_output_fifos[$client_port]}
             has_message='false'
 
             while read -r -t 0; do
