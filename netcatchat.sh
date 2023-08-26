@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO free connections if noone connects after a certain timeout.
 # TODO try to prevent running netcat until the port is queried by a client.
 # TODO Create install script or just some instructions to toss this script /usr/local/bin.
 # TODO See if disabled shellcheck warnings are meaningful.
@@ -296,28 +295,70 @@ run_server() {
     distribute_ports() {
         avalible_ports=("${client_ports[@]}")
         active_ports=()
+        # Used to store ports that have been distributed, but not connected to,
+        #   so that they can be freed automatically if no one connects.
+        active_port_timeout_map=()
+
+        ##
+        # Frees the given port for reuse.
+        #
+        # Parameters:
+        #   $1 - the port to free.
+        #
+        free_port() {
+            unset -v "active_ports[$1]"
+            timeout="${active_port_timeout_map[$port]}"
+            if [ "${#timeout}" -gt 0 ]; then
+                unset -v "active_port_timeout_map[$active_port]"
+            fi
+
+            avalible_ports+=("$1")
+        }
 
         while true; do
+            # Handles commands from other processes ran by this script.
             echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
-            # Frees ports that are no longer in use.
             while read -r line; do
                 # shellcheck disable=SC2206
                 command_arguments=($line)
 
-                if [ "${#command_arguments[@]}" -ge 2 ]                  \
-                        && [ "${command_arguments[0]}" = '!free' ]; then
+                if [ "${#command_arguments[@]}" -ge 2 ]; then
                     port=${command_arguments[1]}
 
-                    if [ "$port" = "${active_ports[$port]}" ]; then
-                        log_info "Port $port was freed"
-
-                        unset -v "active_ports[$port]"
-                        avalible_ports+=("$port")
-                    else
-                        log_error "Attempted to free inactive port $port!"
-                    fi
+                    case "${command_arguments[0]}" in
+                        # Frees ports that are no longer in use.
+                        !free)
+                            if [ "$port" = "${active_ports[$port]}" ]; then
+                                free_port "$port"
+                                log_info "Port $port was freed"
+                            else
+                                log_error "Attempted to free inactive port $port!"
+                            fi
+                        ;;
+                        # Prevents a port from timing out.
+                        !notimeout)
+                            timeout="${active_port_timeout_map[$port]}"
+                            if [ "${#timeout}" -gt 0 ]; then
+                                unset -v "active_port_timeout_map[$port]"
+                            fi
+                        ;;
+                    esac
                 fi
             done < "$distributor_command_input_fifo"
+
+            # Frees ports that no one has connected to.
+            for active_port in "${active_ports[@]}"; do
+                timeout=${active_port_timeout_map[$active_port]}
+
+                if [ "${#timeout}" -gt 0 ]; then
+                    current_time=$(date +%s)
+                    if (( current_time - timeout > 3 )); then
+                        free_port "$active_port"
+                        unset -v "active_port_timeout_map[$active_port]"
+                        log_info "Timed out port $active_port"
+                    fi
+                fi
+            done
 
             # Distributes ports.
             if [ "${#avalible_ports[@]}" -gt 0 ]; then
@@ -327,6 +368,7 @@ run_server() {
                 log_info "Gave out port $port"
                 unset -v 'avalible_ports[0]'; avalible_ports=("${avalible_ports[@]}")
                 active_ports["$port"]="$port"
+                active_port_timeout_map["$port"]=$(date +%s)
 
             else
                 echo -1 | netcat -l -w 0 "$server_port"
@@ -342,8 +384,10 @@ run_server() {
     while true; do
         for client_port in "${client_ports[@]}"; do
             output_fifo="${client_output_fifos[$client_port]}"
+            has_message='false'
 
             while read -r -t 0; do
+                has_message='true'
                 read -r line
                 line=$(trim_whitespace "$line")
 
@@ -358,6 +402,10 @@ run_server() {
                     done
                 fi
             done 0<> "$output_fifo"
+
+            if [ "$has_message" = 'true' ]; then
+                echo "!notimeout $client_port" > "$distributor_command_input_fifo" &
+            fi
         done
 
         sleep 0.1
