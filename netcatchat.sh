@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# TODO free connections if noone connects after a certain timeout.
+# TODO try to prevent running netcat until the port is queried by a client.
+# TODO Create install script or just some instructions to toss this script /usr/local/bin.
+# TODO See if disabled shellcheck warnings are meaningful.
+
 ################################################################################
 # MIT License
 # 
@@ -46,6 +51,43 @@ log_error() {
 
 # A regex that matches ports (really just matches with all integers.)
 port_regex='^[0-9]+$'
+
+##
+# Trims whitespace from the given strings.
+# https://stackoverflow.com/a/3352015 
+#
+# Parameters:
+#   $* - the strings to trim.
+# Returns:
+#   The trimmed strings concatenated together.
+#
+trim_whitespace() {
+    local result="$*"
+    # remove leading whitespace characters
+    result="${result#"${result%%[![:space:]]*}"}"
+    # remove trailing whitespace characters
+    result="${result%"${result##*[![:space:]]}"}"
+    echo "$result"
+}
+
+##
+# Trims whitespace from the stdin.
+# Only returns text if the resulting string is non-empty.
+#
+# Returns:
+#   The trimmed input.
+#
+trim_whitespace_stdin() {
+    local line
+    while read -r line; do
+        line=$(trim_whitespace "$line")
+
+        if [ "${#line}" -gt 0 ]; then
+            echo "$line"
+        fi
+    done
+    
+}
 
 
 
@@ -187,7 +229,8 @@ run_server() {
     # Array between client ports and their FIFOs for recieving messages.
     client_output_fifos=()
     # A FIFO for the port distributor subprocess to recieve commands from.
-    distributor_command_input_fifo="$temporary_directory/commandin"; mkfifo "$distributor_command_input_fifo"
+    distributor_command_input_fifo="$temporary_directory/commandin"
+    mkfifo "$distributor_command_input_fifo"
 
 
 
@@ -232,9 +275,11 @@ run_server() {
 
     # Launch subprocess for each client port to handle the connection.
     for client_port in "${client_ports[@]}"; do
-        input_fifo="$temporary_directory/messagein-$client_port"; client_input_fifos["$client_port"]="$input_fifo"
+        input_fifo="$temporary_directory/messagein-$client_port"
+        client_input_fifos["$client_port"]="$input_fifo"
         mkfifo "$input_fifo"
-        output_fifo="$temporary_directory/messageout-$client_port"; client_output_fifos["$client_port"]="$output_fifo"
+        output_fifo="$temporary_directory/messageout-$client_port"
+        client_output_fifos["$client_port"]="$output_fifo"
         mkfifo "$output_fifo"
     done
     for client_port in "${client_ports[@]}"; do
@@ -259,7 +304,8 @@ run_server() {
                 # shellcheck disable=SC2206
                 command_arguments=($line)
 
-                if [ "${#command_arguments[@]}" -ge 2 ] && [ "${command_arguments[0]}" = '!free' ]; then
+                if [ "${#command_arguments[@]}" -ge 2 ]                  \
+                        && [ "${command_arguments[0]}" = '!free' ]; then
                     port=${command_arguments[1]}
 
                     if [ "$port" = "${active_ports[$port]}" ]; then
@@ -299,14 +345,18 @@ run_server() {
 
             while read -r -t 0; do
                 read -r line
-                message="[$client_port]: $line"
-                log_info "$message"
+                line=$(trim_whitespace "$line")
 
-                # Client message is sent back to them as confirmation.
-                for other_client_port in "${client_ports[@]}"; do
-                    input_fifo="${client_input_fifos[$other_client_port]}"
-                    echo "$message" 1<> "$input_fifo"
-                done
+                if [ "${#line}" -gt 0 ]; then
+                    message="[$client_port]: $line"
+                    log_info "$message"
+
+                    # Client message is sent back to them as confirmation.
+                    for other_client_port in "${client_ports[@]}"; do
+                        input_fifo="${client_input_fifos[$other_client_port]}"
+                        echo "$message" 1<> "$input_fifo"
+                    done
+                fi
             done 0<> "$output_fifo"
         done
 
@@ -320,7 +370,7 @@ run_client() {
     trap 'log_info "Shutting down..."' EXIT
 
     log_info "Connecting to $server_ip:$server_port..."
-    port=$(netcat -v -w 0 "$server_ip" "$server_port")
+    port=$(netcat -v -w 1 "$server_ip" "$server_port")
     
     if [ "$port" = "" ]; then
         log_error "Could not connect to $server_ip:$server_port!"
@@ -333,7 +383,7 @@ run_client() {
         exit 3
     else
         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-        { echo "CONNECTED" ; cat ; } | netcat -v "$server_ip" "$port"
+        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | netcat -v "$server_ip" "$port"
     fi
 }
 
