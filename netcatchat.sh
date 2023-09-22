@@ -2,19 +2,19 @@
 
 ################################################################################
 # MIT License
-# 
+#
 # Copyright (c) 2023 ona-li-toki-e-jan-Epiphany-tawa-mi
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -22,7 +22,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-################################################################################ 
+################################################################################
 
 ##
 # Logs an info-level message to the stdout.
@@ -49,7 +49,7 @@ port_regex='^[0-9]+$'
 
 ##
 # Trims whitespace from the given strings.
-# https://stackoverflow.com/a/3352015 
+# https://stackoverflow.com/a/3352015
 #
 # Parameters:
 #   $* - the strings to trim.
@@ -81,7 +81,6 @@ trim_whitespace_stdin() {
             echo "$line"
         fi
     done
-    
 }
 
 
@@ -99,7 +98,7 @@ SYNOPSIS
 DESCRIPTION
 \tA simple chat server and client that interfaces with netcat. By default,
 \t%s will run in client mode. To run in server mode, specify -s as an
-\targument. 
+\targument.
 
 \tBy default, the client will connect to 127.0.0.1:2000, see the OPTIONS
 \tsection for how to change that.
@@ -161,7 +160,7 @@ AUTHOR
 \tona li toki e jan Epiphany tawa mi.
 
 BUGS
-\tReport bugs to 
+\tReport bugs to
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat/issues>.
 
 COPYRIGHT:
@@ -252,13 +251,13 @@ run_server() {
     #   $1 - the client port to handle.
     #   $2 - the FIFO to send messages to the client with.
     #   $3 - the FIFO to recieve messages from the client with.
-    #   
+    #
     handle_client_connection() {
         while true; do
             log_info "Started listening on port $1"
             echo "Welcome!, You are now chatting as: $1" > "$2" &
-            netcat -l "$1" 0<> "$2" 1<> "$3"
-            
+            nc -l "$1" 0<> "$2" 1<> "$3"
+
             log_info "Connection opened and closed on port $1"
             echo "!free $1" > "$distributor_command_input_fifo" &
 
@@ -283,7 +282,7 @@ run_server() {
     for client_port in "${client_ports[@]}"; do
         input_fifo="${client_input_fifos["$client_port"]}"
         output_fifo="${client_output_fifos["$client_port"]}"
-        handle_client_connection "$client_port" "$input_fifo" "$output_fifo" & 
+        handle_client_connection "$client_port" "$input_fifo" "$output_fifo" &
     done
 
 
@@ -354,7 +353,7 @@ run_server() {
                 fi
             done < "$distributor_command_input_fifo"
 
-            # If we got a !notimeout on an 'avalible' port, that means that 
+            # If we got a !notimeout on an 'avalible' port, that means that
             #   someone has connected to it without first connecting to the
             #   server port. Since the port is in use, we need to mark it as
             #   active.
@@ -370,7 +369,7 @@ run_server() {
                     avalible_port=${avalible_ports[$i]}
                     if [ "$notimeout_port" = "$avalible_port" ]; then
                         was_port_locked='true'
-                        unset -v 'avalible_ports[i]'; 
+                        unset -v 'avalible_ports[i]';
                         active_ports["$avalible_port"]="$avalible_port"
 
                         log_info "Found unexpected connection on port $avalible_port; marking as active"
@@ -400,15 +399,15 @@ run_server() {
             # Distributes ports.
             if [ "${#avalible_ports[@]}" -gt 0 ]; then
                 port=${avalible_ports[0]}
-                echo "$port" | netcat -l -w 0 "$server_port" > /dev/null
-                
+                echo "$port" | nc -l "$server_port" > /dev/null
+
                 log_info "Gave out port $port"
                 unset -v 'avalible_ports[0]'; avalible_ports=("${avalible_ports[@]}")
                 active_ports["$port"]="$port"
                 active_port_timeout_map["$port"]=$(date +%s)
 
             else
-                echo -1 | netcat -l -w 0 "$server_port"
+                echo -1 | nc -l "$server_port"
                 log_info 'Gave out port -1 to client to due all ports being used up'
             fi
         done
@@ -455,12 +454,12 @@ run_client() {
     trap 'log_info "Shutting down..."' EXIT
 
     log_info "Connecting to $server_ip:$server_port..."
-    port=$(netcat -v -w 1 "$server_ip" "$server_port")
-    
+    port=$(nc -v -w 1 "$server_ip" "$server_port")
+
     if [ "$port" = "" ]; then
         log_error "Could not connect to $server_ip:$server_port!"
         exit 2
-    elif [ "$port" -eq -1 ]; then 
+    elif [ "$port" -eq -1 ]; then
         log_error "No avalible client ports on $server_ip to connect to!"
         exit 3
     elif ! [[ "$port" =~ $port_regex ]]; then
@@ -468,7 +467,7 @@ run_client() {
         exit 3
     else
         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | netcat -v "$server_ip" "$port"
+        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v "$server_ip" "$port"
     fi
 }
 
