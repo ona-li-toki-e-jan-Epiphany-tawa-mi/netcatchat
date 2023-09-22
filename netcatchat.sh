@@ -122,6 +122,11 @@ DESCRIPTION
 \tdirectly connect to a client port, so such \"attacks\" should not be too big
 \tof an issue.
 
+\tNote that %s will not run if netcat cannot accept a wait time of 0, which
+\tdepends on which implementation is installed on your system, to check if you
+\tcan run %s, run 'nc -l -w 0'. if this produces an error, then you cannot run
+\t %s.
+
 OPTIONS
 \t-s
 \t\tBy default, %s will run in client mode and try to connect to a
@@ -172,11 +177,11 @@ COPYRIGHT:
 SEE ALSO:
 \tGitHub repository:
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
+" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
 }
 
 print_version() {
-    echo "$0 V0.1.0"
+    echo "$0 V0.1.1"
 }
 
 # The port that users connect to in order to get a port to chat on.
@@ -256,7 +261,7 @@ run_server() {
         while true; do
             log_info "Started listening on port $1"
             echo "Welcome!, You are now chatting as: $1" > "$2" &
-            nc -l "$1" 0<> "$2" 1<> "$3"
+            nc -l -p "$1" 0<> "$2" 1<> "$3"
 
             log_info "Connection opened and closed on port $1"
             echo "!free $1" > "$distributor_command_input_fifo" &
@@ -399,7 +404,7 @@ run_server() {
             # Distributes ports.
             if [ "${#avalible_ports[@]}" -gt 0 ]; then
                 port=${avalible_ports[0]}
-                echo "$port" | nc -l "$server_port" > /dev/null
+                echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
 
                 log_info "Gave out port $port"
                 unset -v 'avalible_ports[0]'; avalible_ports=("${avalible_ports[@]}")
@@ -407,7 +412,7 @@ run_server() {
                 active_port_timeout_map["$port"]=$(date +%s)
 
             else
-                echo -1 | nc -l "$server_port"
+                echo -1 | nc -l -w 0 -p "$server_port"
                 log_info 'Gave out port -1 to client to due all ports being used up'
             fi
         done

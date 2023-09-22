@@ -10,6 +10,16 @@ There is the possiblity for someone to make their own script to connect to the s
 
 I'm considering renting a server/simillar and tossing a netcatchat server on it to run 24/7. If I do, I will put the IP and server port here.
 
+## System requirements
+
+Note that netcatchat will not work if netcat will not accept a wait time of 0, which depends on which implementation is installed on your system. To check if you can run netcatchat, run the following netcat command:
+
+```console
+nc -l -w 0
+```
+
+If it immediately exits and ouputs something like "Error: Invalid wait-time: 0", you will not be able to run netcatchat.
+
 ## Installation
 
 netcatchat is just a standalone bash script; you can run it as-is. If you want to run it from the command line from anywhere just by typing "netcatchat", run the following commands on the script file:
