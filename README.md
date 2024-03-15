@@ -35,6 +35,9 @@ a client port, so such "attacks" should not be too big of an issue.
 
 netcatchat requires netcat and the bash shell.
 
+There's a `shell.nix` you can use to generate a development enviroment with
+`nix-shell`.
+
 Note that running netcatchat as a server will not work if netcat will not accept
 a wait time of 0, which depends on which implementation is installed on your
 system. To check if you can run a server, run the following netcat command:
