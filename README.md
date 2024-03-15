@@ -50,7 +50,7 @@ netcatchat -h
 
 netcatchat -v
 
-netcatchat [-p server_port] [-i server_ip] [-x proxy_address [-X proxy_protocol]]
+netcatchat [-p server_port] [-i server_ip] [-x proxy_address[:port] [-X proxy_protocol]]
 
 netcatchat -s [-p server_port] [-c client_ports]
 

@@ -45,6 +45,9 @@ log_error() {
 # A regex that matches ports (really just matches with all integers.)
 port_regex='^[0-9]+$'
 
+# A regex that matches proxy protocols.
+proxy_regex='^(connect|4|5)$'
+
 ##
 # Trims whitespace from the given strings.
 # https://stackoverflow.com/a/3352015
@@ -90,7 +93,7 @@ print_usage() {
 SYNOPSIS
 \tnetcatchat -h
 \tnetcatchat -v
-\tnetcatchat [-p server_port] [-i server_ip] [-x proxy_address
+\tnetcatchat [-p server_port] [-i server_ip] [-x proxy_address[:port]
 \t           [-X proxy_protocol]]
 \tnetcatchat -s [-p server_port] [-c client_ports]
 
@@ -156,7 +159,7 @@ OPTIONS
 \t\t4 - SOCKS4, 5 - SOCKS5, or connect - HTTPS. SOCKS5 is used by
 \t\tdefault if not specified. Must be used with -x.
 
-\t-x proxy_address
+\t-x proxy_address[:port]
 \t\tClient mode only. The address of the proxy to use.
 
 \t-h
@@ -192,7 +195,7 @@ SEE ALSO:
 }
 
 print_version() {
-    echo "$0 V0.1.1"
+    echo "netcatchat V0.1.1"
 }
 
 # The port that users connect to in order to get a port to chat on.
@@ -203,13 +206,19 @@ client_ports=({2001..2010})
 server_ip=127.0.0.1
 # either 'client' or 'server'.
 type=client
+# The proxy protocol to use for the client's proxy. Defaults to SOCKS5.
+proxy_protocol=5
+# The proxy address to use for the client.
+proxy_address=''
 
-while getopts 'sp:c:i:hv' flag; do
+while getopts 'sp:c:i:X:x:hv' flag; do
     case "$flag" in
         s) type=server                                   ;;
         p) server_port="$OPTARG"                         ;;
         c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;;
         i) server_ip="$OPTARG"                           ;;
+        X) proxy_protocol="$OPTARG"                      ;;
+        x) proxy_address="$OPTARG"                       ;;
         h) print_usage;   exit                           ;;
         v) print_version; exit                           ;;
         *) print_usage;   exit 1                         ;;
@@ -219,18 +228,22 @@ done
 option_parsing_failed='false'
 
 if ! [[ "$server_port" =~ $port_regex ]]; then
-    log_error "$0: invalid port $server_port specfied with argument -p"
+    log_error "netcatchat: invalid port $server_port specfied with argument -p"
     option_parsing_failed='true'
 fi
 
 for client_port in "${client_ports[@]}"; do
     if ! [[ "$client_port" =~ $port_regex ]]; then
-        log_error "$0: invalid client_port specfied with argument -c"
+        log_error "netcatchat: invalid client_port specfied with argument -c"
         option_parsing_failed='true'
     fi
 done
 
-# If server_ip (-i) is invalid netcat will catch it.
+if ! [[ "$proxy_protocol" =~ $proxy_regex ]]; then
+    log_error "netcatchat: invalid port $server_port specfied with argument -p"
+    option_parsing_failed='true'
+fi
+
 if [ "$option_parsing_failed" = 'true' ]; then
     exit 1
 fi
@@ -469,10 +482,15 @@ run_server() {
 run_client() {
     trap 'log_info "Shutting down..."' EXIT
 
-    log_info "Connecting to $server_ip:$server_port..."
-    port=$(nc -v -w 1 "$server_ip" "$server_port")
+    proxy_arguments=''
+    if [ ! "$proxy_address" = '' ]; then
+        proxy_arguments="-X $proxy_protocol -x $proxy_address"
+    fi
 
-    if [ "$port" = "" ]; then
+    log_info "Connecting to $server_ip:$server_port..."
+    port=$(nc -v -w 1 $proxy_arguments "$server_ip" "$server_port")
+
+    if [ "$port" = '' ]; then
         log_error "Could not connect to $server_ip:$server_port!"
         exit 2
     elif [ "$port" -eq -1 ]; then
@@ -483,7 +501,7 @@ run_client() {
         exit 3
     else
         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v "$server_ip" "$port"
+        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
     fi
 }
 
