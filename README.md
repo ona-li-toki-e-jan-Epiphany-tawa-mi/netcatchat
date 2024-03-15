@@ -21,7 +21,8 @@ and prevent people from connecting. There is absolutely no mechanism for
 moderation. No attempts are made at encryption. Basically, proceed with caution.
 
 netcatchat CAN be used with a proxy though, so you can achieve encryption
-through the use of Tor or other anonymizing networks.
+through the use of Tor or other anonymizing networks. Or, you could perhaps use
+stunnel to make an SSL tunnel to use.
 
 There is the possiblity for someone to make their own script to connect to the
 server_port and not reconnect on a client port, or connect directly to a client
@@ -30,11 +31,13 @@ server_port are freed if unused and locked (as-in it won't try to give someone
 that port to connect on as it is busy) if someone decides to directly connect to
 a client port, so such "attacks" should not be too big of an issue.
 
-## System requirements
+## Dependencies
+
+netcatchat requires netcat and the bash shell.
 
 Note that running netcatchat as a server will not work if netcat will not accept
 a wait time of 0, which depends on which implementation is installed on your
-system. To check if you can run netcatchat, run the following netcat command:
+system. To check if you can run a server, run the following netcat command:
 
 ```console
 nc -l -w 0
@@ -43,6 +46,8 @@ nc -l -w 0
 If it immediately exits and ouputs something like "Error: Invalid wait-time: 0",
 you will not be able to run netcatchat in server mode. The client should still
 work though.
+
+From my experience, the OpenBSD implementation works best.
 
 ## Synopsis
 

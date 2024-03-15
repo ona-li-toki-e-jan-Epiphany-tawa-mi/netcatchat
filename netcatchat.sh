@@ -117,7 +117,8 @@ DESCRIPTION
 \tattempts are made at encryption. Basically, proceed with caution.
 
 \tnetcatchat CAN be used with a proxy though, so you can achieve encryption
-\tthrough the use of Tor or other anonymizing networks.
+\tthrough the use of Tor or other anonymizing networks. Or, you could perhaps
+\tuse stunnel to make an SSL tunnel to use.
 
 \tThere is the possiblity for someone to make their own script to connect to
 \tthe server_port and not reconnect on a client port, or connect directly to a
