@@ -90,7 +90,8 @@ print_usage() {
 SYNOPSIS
 \tnetcatchat -h
 \tnetcatchat -v
-\tnetcatchat [-p server_port] [-i server_ip]
+\tnetcatchat [-p server_port] [-i server_ip] [-x proxy_address
+\t           [-X proxy_protocol]]
 \tnetcatchat -s [-p server_port] [-c client_ports]
 
 DESCRIPTION
@@ -111,6 +112,9 @@ DESCRIPTION
 \tSomeone could easily use a script to steal all the ports and prevent people
 \tfrom connecting. There is absolutely no mechanism for moderation. No
 \tattempts are made at encryption. Basically, proceed with caution.
+
+\tnetcatchat CAN be used with a proxy though, so you can achieve encryption
+\tthrough the use of Tor or other anonymizing networks.
 
 \tThere is the possiblity for someone to make their own script to connect to
 \tthe server_port and not reconnect on a client port, or connect directly to a
@@ -146,6 +150,14 @@ OPTIONS
 \t-i server_ip
 \t\tClient mode only. Will try to connect to the server at server_ip. Defaults
 \t\tto 127.0.0.1, localhost.
+
+\t-X proxy_protocol
+\t\tClient mode only. The protocol to use for the proxy. Must be either:
+\t\t4 - SOCKS4, 5 - SOCKS5, or connect - HTTPS. SOCKS5 is used by
+\t\tdefault if not specified. Must be used with -x.
+
+\t-x proxy_address
+\t\tClient mode only. The address of the proxy to use.
 
 \t-h
 \t\tDisplays help text and exits.

@@ -20,6 +20,9 @@ or rate-limit spammers. Someone could easily use a script to steal all the ports
 and prevent people from connecting. There is absolutely no mechanism for
 moderation. No attempts are made at encryption. Basically, proceed with caution.
 
+netcatchat CAN be used with a proxy though, so you can achieve encryption
+through the use of Tor or other anonymizing networks.
+
 There is the possiblity for someone to make their own script to connect to the
 server_port and not reconnect on a client port, or connect directly to a client
 port. There are checks in place to make sure that ports dished out from the
@@ -47,7 +50,7 @@ netcatchat -h
 
 netcatchat -v
 
-netcatchat [-p server_port] [-i server_ip]
+netcatchat [-p server_port] [-i server_ip] [-x proxy_address [-X proxy_protocol]]
 
 netcatchat -s [-p server_port] [-c client_ports]
 
@@ -75,6 +78,16 @@ by how many are supplied. Defaults to 2001-2010 (inclusive.)
 
 Client mode only. Will try to connect to the server at server_ip. Defaults to
 127.0.0.1, localhost.
+
+- -X proxy_protocol
+
+Client mode only. The protocol to use for the proxy. Must be either: 4 - SOCKS4,
+5 - SOCKS5, or connect - HTTPS. SOCKS5 is used by default if not specified. Must
+be used with -x.
+
+- -x proxy_address
+
+Client mode only. The address of the proxy to use.
 
 - -h
 
