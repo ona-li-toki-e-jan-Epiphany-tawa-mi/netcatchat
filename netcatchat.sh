@@ -195,7 +195,7 @@ SEE ALSO:
 }
 
 print_version() {
-    echo "netcatchat V0.1.1"
+    echo "netcatchat V0.1.2"
 }
 
 # The port that users connect to in order to get a port to chat on.
