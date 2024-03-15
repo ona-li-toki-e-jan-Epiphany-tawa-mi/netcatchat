@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-################################################################################
 # MIT License
 #
-# Copyright (c) 2023 ona-li-toki-e-jan-Epiphany-tawa-mi
+# Copyright (c) 2023-2024 ona-li-toki-e-jan-Epiphany-tawa-mi
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +21,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-################################################################################
 
 ##
 # Logs an info-level message to the stdout.
@@ -87,18 +85,18 @@ trim_whitespace_stdin() {
 
 print_usage() {
     printf "NAME
-\t%s - simple chat server and client using netcat
+\tnetcatchat - simple chat server and client using netcat
 
 SYNOPSIS
-\t%s -h
-\t%s -v
-\t%s [-p server_port] [-i server_ip]
-\t%s -s [-p server_port] [-c client_ports]
+\tnetcatchat -h
+\tnetcatchat -v
+\tnetcatchat [-p server_port] [-i server_ip]
+\tnetcatchat -s [-p server_port] [-c client_ports]
 
 DESCRIPTION
 \tA simple chat server and client that interfaces with netcat. By default,
-\t%s will run in client mode. To run in server mode, specify -s as an
-\targument.
+\tnetcatchat will run in client mode. To run in server mode, specify -s as
+\tan argument.
 
 \tBy default, the client will connect to 127.0.0.1:2000, see the OPTIONS
 \tsection for how to change that.
@@ -122,20 +120,21 @@ DESCRIPTION
 \tdirectly connect to a client port, so such \"attacks\" should not be too big
 \tof an issue.
 
-\tNote that %s will not run if netcat cannot accept a wait time of 0, which
-\tdepends on which implementation is installed on your system, to check if you
-\tcan run %s, run 'nc -l -w 0'. if this produces an error, then you cannot run
-\t %s.
+\tNote that netcatchat will not run in server mode if netcat cannot accept a
+\twait time of 0, which depends on which implementation is installed on your
+\tsystem, to check if you can run netcatchat, run 'nc -l -w 0'. if this
+\tproduces an error, then you cannot run a server. The client mode should still
+\twork.
 
 OPTIONS
 \t-s
-\t\tBy default, %s will run in client mode and try to connect to a
+\t\tBy default, netcatchat will run in client mode and try to connect to a
 \t\tserver. Specifying -s will, instead, make it run in server mode.
 
 \t-p server_port
-\t\tIn server mode, %s will listen on server_port for incoming chat
+\t\tIn server mode, netcatchat will listen on server_port for incoming chat
 \t\tclients and routes them to a client port if one is avalible. On client
-\t\tmode, %s will try to connect to the server on server_port to
+\t\tmode, netcatchat will try to connect to the server on server_port to
 \t\tfigure out which client port to connect on. Defaults to 2000
 
 \t-c client_ports
@@ -156,10 +155,10 @@ OPTIONS
 
 RETURN CODES
 \tIf the command line arguments fail to parse, 1 will be returned. In server
-\tmode, %s will not exit on it's own; no error codes will be returned. In
-\tclient mode, %s will not exit on it's own under normal conditions. If it
-\tfailed to connect, 2 will be returned. If there is no room on the server, or
-\tinvalid data was recieved from the server, 3 will be returned.
+\tmode, netcatchat will not exit on it's own; no error codes will be returned.
+\tIn client mode, netcatchat will not exit on it's own under normal conditions.
+\tIf it failed to connect, 2 will be returned. If there is no room on the
+\tserver, or invalid data was recieved from the server, 3 will be returned.
 
 AUTHOR
 \tona li toki e jan Epiphany tawa mi.
@@ -169,15 +168,15 @@ BUGS
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat/issues>.
 
 COPYRIGHT:
-\tCopyright © 2023 ona li toki e jan Epiphany tawa mi. License: MIT. This is
-\tfree software; you are free to modify and redistribute it. See the source
+\tCopyright © 2023-2024 ona li toki e jan Epiphany tawa mi. License: MIT. This
+\tis free software; you are free to modify and redistribute it. See the source
 \tor visit <https://mit-license.org> for the full terms of the license. THIS
 \tSOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND.
 
 SEE ALSO:
 \tGitHub repository:
 \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0" "$0"
+"
 }
 
 print_version() {
