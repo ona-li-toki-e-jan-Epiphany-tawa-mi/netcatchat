@@ -9,8 +9,23 @@ No messages are saved to disk, just kept in memory. Keep in mind that these are
 not garbage collected; if you're running a server consider having it restart
 every-so-often.
 
-I'm considering renting a server/simillar and tossing a netcatchat server on it
-to run 24/7. If I do, I will put the IP and server port here.
+## paltepuk netcatchat server
+
+I have a netcatchat server running on my paltepuk server, which you can connect
+to at `6ay2f2mmkogzz6mwcaxjttxl4jydnskavfaxgumeptwhhdjum3i6n3id.onion` port
+2000. To access it, you can use the following command as a template. This
+assumes you have the Tor daemon running on localhost on port 9050, change for
+your setup. It has room for 25 people.
+
+Keep in mind that the chat is COMPLETELY UNMODERATED. I take
+absolutely no responsibility for what people say on it. Proceed at your own
+risk.
+
+The server will reset every 4 hours and any messages will be wiped.
+
+```
+netcatchat -x 127.0.0.1:9050 -i 6ay2f2mmkogzz6mwcaxjttxl4jydnskavfaxgumeptwhhdjum3i6n3id.onion
+```
 
 ## Forewarnings
 
@@ -22,7 +37,7 @@ moderation. No attempts are made at encryption. Basically, proceed with caution.
 
 netcatchat CAN be used with a proxy though, so you can achieve encryption
 through the use of Tor or other anonymizing networks. Or, you could perhaps use
-stunnel to make an SSL tunnel to use.
+stunnel or something similar to make an SSL tunnel to use.
 
 There is the possiblity for someone to make their own script to connect to the
 server_port and not reconnect on a client port, or connect directly to a client
@@ -51,6 +66,11 @@ you will not be able to run netcatchat in server mode. The client should still
 work though.
 
 From my experience, the OpenBSD implementation works best.
+
+## Installation
+
+netcatchat is just a single shell script, but there is a Nix package file in
+the `nix` directory if you want to install it via Nix.
 
 ## Synopsis
 
