@@ -69,7 +69,9 @@ From my experience, the OpenBSD implementation works best.
 
 ## Installation
 
-netcatchat is just a single shell script, but you can also install it with Nix from the [(CLEARNET) NUR](https://github.com/nix-community/NUR) with the following attribute:
+netcatchat is just a single shell script, but you can also install it with Nix
+from the NUR (https://github.com/nix-community/NUR) with the following
+attribute:
 
 ```nix
 nur.repos.ona-li-toki-e-jan-Epiphany-tawa-mi.netcatchat
