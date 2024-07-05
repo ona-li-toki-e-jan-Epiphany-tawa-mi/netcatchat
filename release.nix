@@ -35,12 +35,34 @@ let pkgs = (import nixpkgs {});
     name = "netcatchat";
 in
 {
+  # Does static analysis with shellcheck.
+  shellcheck = pkgs.stdenv.mkDerivation {
+    inherit name;
+
+    inherit src;
+
+    nativeBuildInputs = with pkgs; [ shellcheck ];
+
+    buildPhase = ''
+      runHook preBuild
+
+      shellcheck *.sh
+
+      runHook postBuild
+    '';
+
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out
+      runHook postInstall
+    '';
+  };
+
   # Makes tarballs of the source code.
   sourceTarball = pkgs.stdenv.mkDerivation {
     # No need to actually build the project.
     dontBuild   = true;
     dontInstall = true;
-
     inherit name;
 
     inherit src;
