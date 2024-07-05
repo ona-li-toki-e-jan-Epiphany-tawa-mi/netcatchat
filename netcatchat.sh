@@ -489,6 +489,7 @@ run_client() {
     fi
 
     log_info "Connecting to $server_ip:$server_port..."
+    # shellcheck disable=SC2086 # We want word splitting.
     port=$(nc -v -w 1 $proxy_arguments "$server_ip" "$server_port")
 
     if [ "$port" = '' ]; then
@@ -502,6 +503,7 @@ run_client() {
         exit 3
     else
         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
+        # shellcheck disable=SC2086 # We want word splitting.
         { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
     fi
 }
