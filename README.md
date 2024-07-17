@@ -39,7 +39,8 @@ work though.
 
 ## Installation
 
-You can install it with Nix from the NUR (https://github.com/nix-community/NUR)
+You can install it with Nix from the NUR
+([https://github.com/nix-community/NUR](https://github.com/nix-community/NUR))
 with the following attribute:
 
 ```nix
