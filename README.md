@@ -15,6 +15,7 @@ Dependencies:
 
 - Bash.
 - netcat (OpenBSD implementation recommended.)
+- procps (pkill, pgrep, etc..)
 
 There's a `flake.nix` you can use to generate a development enviroment with
 `nix develop path:.`.

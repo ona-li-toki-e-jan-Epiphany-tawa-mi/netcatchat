@@ -40,7 +40,9 @@
           default = with pkgs; mkShell {
             nativeBuildInputs = [
               bash
+
               netcat-openbsd
+              procps
             ];
           };
         });
