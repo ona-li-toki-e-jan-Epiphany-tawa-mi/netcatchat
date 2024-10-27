@@ -46,6 +46,54 @@ fatal() {
 
 
 
+################################################################################
+# Argument parsing START                                                       #
+################################################################################
+
+## Global options.
+# Whether to run as client or server.
+# Must be one of: 'client' 'server'.
+mode=client
+# The port that users connect to in order to get a port to chat on.
+server_port=
+
+## Server options.
+# A space-seprated list of the ports that each user connects to to send and
+# recieve messages.
+client_ports=
+
+## Client options.
+# IP of the server to connect to.
+server_ip=
+# The proxy protocol to use for the client's proxy.
+# Leave empty for no proxy.
+# Must be one of: '' 'socks4' 'socks5' 'http'
+proxy_protocol=
+# The address of the client's proxy.
+# Leave empty for no proxy.
+proxy_address=
+
+while getopts 'sp:c:i:X:x:hv' flag; do
+    case "$flag" in
+        # Global options.
+        s) mode=server                                   ;;
+        p) server_port=$OPTARG                           ;;
+        # Server options.
+        c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;; # TODO check if -a is POSIX.
+        # Client options.
+        i) server_ip=$OPTARG                             ;;
+        X) proxy_protocol=$OPTARG                        ;;
+        x) proxy_address=$OPTARG                         ;;
+        # Other.
+        h) print_usage;   exit                           ;;
+        v) print_version; exit                           ;;
+        *) print_usage;   exit 1                         ;;
+    esac
+done
+
+################################################################################
+# Argument parsing END                                                         #
+################################################################################
 # # A regex that matches ports (really just matches with all integers.)
 # port_regex='^[0-9]+$'
 
