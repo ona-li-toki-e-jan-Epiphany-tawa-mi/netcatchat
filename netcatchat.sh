@@ -26,6 +26,7 @@
 # TODO add proper error handling.
 # TODO? add proper TUI.
 # TODO make help info not man-page like,
+# TODO add automatic tests for if the installed implementation of nc supports netcatchat.
 
 # Error on unset variables.
 set -u
@@ -49,6 +50,76 @@ fatal() {
 ################################################################################
 # Argument parsing START                                                       #
 ################################################################################
+
+usage() {
+    echo "Usages:
+  $0 -h
+  $0 -v
+  $0 [-s] [-p server_port] [-i server_ip] [-x proxy_address[:port] [-X proxy_protocol]]
+
+A simple chat server and client that interfaces with netcat. By default,
+netcatchat will run in client mode. To run in server mode, specify -s as
+an argument.
+
+Client mode:
+  In client mode, netcatchat will attempt to connect to a netcatchat server. If
+  successful, you will join and your name will be set to the port you're on.
+
+Server mode:
+  In server mode, netcatchat will listen for and accept incoming netcatchat
+  clients and route messages between them.
+
+Forewarnings:
+  netcatchat is extremely basic; it does not come with chat filtering,
+  protections against spamming, banning users, or any other fancy business.
+
+  netcatchat does not provide encryption in of itself. It can, however, be used
+  with a proxy that provides encryption, such as stunnel (http), Tor (socks5),
+  and I2P (http).
+
+  netcatchat will not run in server mode if the system's netcat implementation
+  cannot accept a wait time of 0, which depends on which implementation is
+  installed on your system, to check if you can run netcatchat, run
+  'nc -l -w 0'. if this produces an error, then you cannot run a server. The
+  client mode should still work.
+
+Options:
+  -s
+    Run in server mode.
+
+  -p server_port
+    (server mode) netcatchat will listen on server_port for incoming clients and
+    routes them to a client port if one is avalible.
+    (client mode) netcatchat will try to connect to the server on server_port to
+    obtain a client port to connect on.
+
+  -c client_ports
+    (server mode) client_ports are a space-seperated list of the avalible ports
+    for clients to connect on. Each client needs their own port.
+
+  -i server_ip
+    (client mode) Server IP address.
+
+  -X proxy_protocol
+    (client mode) The protocol to use for the proxy. Must one of: '' (no proxy),
+    'socks4', 'socks5', or 'http'.
+
+  -x proxy_address[:port]
+    (client mode) Proxy IP address.
+
+  -h
+    Displays usage and exits.
+
+  -v
+    Displays version and exits.
+
+TODO: exit codes
+"
+}
+
+version() {
+    echo "netcatchat V1.0.0"
+}
 
 ## Global options.
 # Whether to run as client or server.
@@ -85,9 +156,9 @@ while getopts 'sp:c:i:X:x:hv' flag; do
         X) proxy_protocol=$OPTARG                        ;;
         x) proxy_address=$OPTARG                         ;;
         # Other.
-        h) print_usage;   exit                           ;;
-        v) print_version; exit                           ;;
-        *) print_usage;   exit 1                         ;;
+        h) usage;   exit                                 ;;
+        v) version; exit                                 ;;
+        *) fatal "Try '$0 -h' for more information"      ;;
     esac
 done
 
@@ -135,148 +206,6 @@ done
 #         fi
 #     done
 # }
-
-
-
-# print_usage() {
-#     printf "NAME
-# \tnetcatchat - simple chat server and client using netcat
-
-# SYNOPSIS
-# \tnetcatchat -h
-# \tnetcatchat -v
-# \tnetcatchat [-p server_port] [-i server_ip] [-x proxy_address[:port]
-# \t           [-X proxy_protocol]]
-# \tnetcatchat -s [-p server_port] [-c client_ports]
-
-# DESCRIPTION
-# \tA simple chat server and client that interfaces with netcat. By default,
-# \tnetcatchat will run in client mode. To run in server mode, specify -s as
-# \tan argument.
-
-# \tBy default, the client will connect to 127.0.0.1:2000, see the OPTIONS
-# \tsection for how to change that.
-
-# \tBy default, the server will listen on port 2000 to give out ports 2001-2010
-# \tfor clients to connect to. See the OPTIONS section for how to change that.
-
-# \tEach client will have the port that they are connected on as their username.
-
-# \tThis chat system is extremely basic. It will not check if multiple clients
-# \tare connected from the same ip. It will not block or rate-limit spammers.
-# \tSomeone could easily use a script to steal all the ports and prevent people
-# \tfrom connecting. There is absolutely no mechanism for moderation. No
-# \tattempts are made at encryption. Basically, proceed with caution.
-
-# \tnetcatchat CAN be used with a proxy though, so you can achieve encryption
-# \tthrough the use of Tor or other anonymizing networks. Or, you could perhaps
-# \tuse stunnel to make an SSL tunnel to use.
-
-# \tThere is the possiblity for someone to make their own script to connect to
-# \tthe server_port and not reconnect on a client port, or connect directly to a
-# \tclient port. There are checks in place to make sure that ports dished out
-# \tfrom the server_port are freed if unused and locked (as-in it won't try to
-# \tgive someone that port to connect on as it is busy) if someone decides to
-# \tdirectly connect to a client port, so such \"attacks\" should not be too big
-# \tof an issue.
-
-# \tNote that netcatchat will not run in server mode if netcat cannot accept a
-# \twait time of 0, which depends on which implementation is installed on your
-# \tsystem, to check if you can run netcatchat, run 'nc -l -w 0'. if this
-# \tproduces an error, then you cannot run a server. The client mode should still
-# \twork.
-
-# OPTIONS
-# \t-s
-# \t\tBy default, netcatchat will run in client mode and try to connect to a
-# \t\tserver. Specifying -s will, instead, make it run in server mode.
-
-# \t-p server_port
-# \t\tIn server mode, netcatchat will listen on server_port for incoming chat
-# \t\tclients and routes them to a client port if one is avalible. On client
-# \t\tmode, netcatchat will try to connect to the server on server_port to
-# \t\tfigure out which client port to connect on. Defaults to 2000
-
-# \t-c client_ports
-# \t\tServer mode only. client_ports are the avalible ports for clients to
-# \t\tconnect on. Each client needs their own port, so the maximum number of
-# \t\tusers will be limited by how many are supplied. Defaults to 2001-2010
-# \t\t(inclusive.)
-
-# \t-i server_ip
-# \t\tClient mode only. Will try to connect to the server at server_ip. Defaults
-# \t\tto 127.0.0.1, localhost.
-
-# \t-X proxy_protocol
-# \t\tClient mode only. The protocol to use for the proxy. Must be either:
-# \t\t4 - SOCKS4, 5 - SOCKS5, or connect - HTTPS. SOCKS5 is used by
-# \t\tdefault if not specified. Must be used with -x.
-
-# \t-x proxy_address[:port]
-# \t\tClient mode only. The address of the proxy to use.
-
-# \t-h
-# \t\tDisplays help text and exits.
-
-# \t-v
-# \t\tDisplays version text and exits.
-
-# RETURN CODES
-# \tIf the command line arguments fail to parse, 1 will be returned. In server
-# \tmode, netcatchat will not exit on it's own; no error codes will be returned.
-# \tIn client mode, netcatchat will not exit on it's own under normal conditions.
-# \tIf it failed to connect, 2 will be returned. If there is no room on the
-# \tserver, or invalid data was recieved from the server, 3 will be returned.
-
-# AUTHOR
-# \tona li toki e jan Epiphany tawa mi.
-
-# BUGS
-# \tReport bugs to
-# \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat/issues>.
-
-# COPYRIGHT:
-# \tCopyright © 2023-2024 ona li toki e jan Epiphany tawa mi. License: MIT. This
-# \tis free software; you are free to modify and redistribute it. See the source
-# \tor visit <https://mit-license.org> for the full terms of the license. THIS
-# \tSOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND.
-
-# SEE ALSO:
-# \tGitHub repository:
-# \t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-# "
-# }
-
-# print_version() {
-#     echo "netcatchat V0.1.2"
-# }
-
-# # The port that users connect to in order to get a port to chat on.
-# server_port=2000
-# # (server) The ports that each user uses to send and recieve messages.
-# client_ports=({2001..2010})
-# # (client) IP of the server to connect to.
-# server_ip=127.0.0.1
-# # either 'client' or 'server'.
-# type=client
-# # The proxy protocol to use for the client's proxy. Defaults to SOCKS5.
-# proxy_protocol=5
-# # The proxy address to use for the client.
-# proxy_address=''
-
-# while getopts 'sp:c:i:X:x:hv' flag; do
-#     case "$flag" in
-#         s) type=server                                   ;;
-#         p) server_port="$OPTARG"                         ;;
-#         c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;;
-#         i) server_ip="$OPTARG"                           ;;
-#         X) proxy_protocol="$OPTARG"                      ;;
-#         x) proxy_address="$OPTARG"                       ;;
-#         h) print_usage;   exit                           ;;
-#         v) print_version; exit                           ;;
-#         *) print_usage;   exit 1                         ;;
-#     esac
-# done
 
 # option_parsing_failed='false'
 
