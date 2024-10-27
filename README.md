@@ -1,3 +1,5 @@
+# TODO redo README.
+
 # netcatchat
 
 netcatchat is a simple command-line chat server and client using netcat.
