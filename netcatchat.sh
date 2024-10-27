@@ -27,25 +27,24 @@
 # TODO? add proper TUI.
 # TODO make help info not man-page like,
 
-# ##
-# # Logs an info-level message to the stdout.
-# #
-# # Parameters:
-# #   $1 - the message to send.
-# #
-# log_info() {
-#     echo "[$(date '+%D %T')] INFO: $1"
-# }
+# Error on unset variables.
+set -u
 
-# ##
-# # Logs an error-level message to the stderr.
-# #
-# # Parameters:
-# #   $1 - the message to send.
-# #
-# log_error() {
-#     echo "[$(date '+%D %T')] ERROR: $1" 1>&2
-# }
+info() {
+    echo "info:    $1";
+}
+warn() {
+    echo "warning: $1" 2>&1;
+}
+error() {
+    echo "error:   $1" 2>&1;
+}
+fatal() {
+    echo "fatal:   $1" 2>&1;
+    exit 1
+}
+
+
 
 # # A regex that matches ports (really just matches with all integers.)
 # port_regex='^[0-9]+$'
