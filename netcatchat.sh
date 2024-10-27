@@ -27,6 +27,7 @@
 # TODO? add proper TUI.
 # TODO make help info not man-page like,
 # TODO add automatic tests for if the installed implementation of nc supports netcatchat.
+# TODO rename notion of server_ip to reflect that it can also accept domain names.
 
 # Error on unset variables.
 set -u
@@ -43,6 +44,17 @@ error() {
 fatal() {
     echo "fatal:   $1" 2>&1;
     exit 1
+}
+
+# Matches an extended regular expression (ERE) against a string.
+# $1 - the ERE.
+# $2 - the string to match against.
+# $? - 0 if the string matches, else 1.
+match_regex() {
+    # Setting POSIXLY_CORRECT disables implementation-specfic extensions and
+    # behaviors.
+    POSIXLY_CORRECT='' grep -qE "$1" <<< "$2"
+    return $?
 }
 
 
@@ -117,6 +129,10 @@ TODO: exit codes
 "
 }
 
+short_usage() {
+    echo "Try '$0 -h' for more information"
+}
+
 version() {
     echo "netcatchat V1.0.0"
 }
@@ -124,7 +140,7 @@ version() {
 ## Global options.
 # Whether to run as client or server.
 # Must be one of: 'client' 'server'.
-mode=client
+mode='client'
 # The port that users connect to in order to get a port to chat on.
 server_port=
 
@@ -144,6 +160,8 @@ proxy_protocol=
 # Leave empty for no proxy.
 proxy_address=
 
+# Parsing.
+[ 0 -eq $# ] && usage && exit
 while getopts 'sp:c:i:X:x:hv' flag; do
     case "$flag" in
         # Global options.
@@ -156,20 +174,33 @@ while getopts 'sp:c:i:X:x:hv' flag; do
         X) proxy_protocol=$OPTARG                        ;;
         x) proxy_address=$OPTARG                         ;;
         # Other.
-        h) usage;   exit                                 ;;
-        v) version; exit                                 ;;
-        *) fatal "Try '$0 -h' for more information"      ;;
+        h) usage;       exit                             ;;
+        v) version;     exit                             ;;
+        *) short_usage; exit 1                           ;;
     esac
 done
+
+## Validation.
+# Global options.
+if ! match_regex '^[[:digit:]]{1,5}$' "$server_port"; then
+    short_usage
+    fatal "invalid server_port '$server_port' supplied with '-p'; expected port number"
+fi
+# Server options.
+#TODO validate client ports.
+# Client options.
+#TODO? validate server ip.
+if [ -n "$proxy_protocol" ] && [ 'socks4' != "$proxy_protocol" ] &&
+       [ 'socks5' != "$proxy_protocol" ] && [ 'http' != "$proxy_protocol" ]; then
+    short_usage
+    fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X'; expected one of: '', 'socks4', 'socks5', 'http'"
+fi
+#TODO? validate proxy_address.
 
 ################################################################################
 # Argument parsing END                                                         #
 ################################################################################
-# # A regex that matches ports (really just matches with all integers.)
-# port_regex='^[0-9]+$'
 
-# # A regex that matches proxy protocols.
-# proxy_regex='^(connect|4|5)$'
 
 # ##
 # # Trims whitespace from the given strings.
@@ -206,29 +237,6 @@ done
 #         fi
 #     done
 # }
-
-# option_parsing_failed='false'
-
-# if ! [[ "$server_port" =~ $port_regex ]]; then
-#     log_error "netcatchat: invalid port $server_port specfied with argument -p"
-#     option_parsing_failed='true'
-# fi
-
-# for client_port in "${client_ports[@]}"; do
-#     if ! [[ "$client_port" =~ $port_regex ]]; then
-#         log_error "netcatchat: invalid client_port specfied with argument -c"
-#         option_parsing_failed='true'
-#     fi
-# done
-
-# if ! [[ "$proxy_protocol" =~ $proxy_regex ]]; then
-#     log_error "netcatchat: invalid port $server_port specfied with argument -p"
-#     option_parsing_failed='true'
-# fi
-
-# if [ "$option_parsing_failed" = 'true' ]; then
-#     exit 1
-# fi
 
 # run_server() {
 #     temporary_directory=$(mktemp -d)
