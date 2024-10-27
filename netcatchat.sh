@@ -27,7 +27,6 @@
 # TODO? add proper TUI.
 # TODO make help info not man-page like,
 # TODO add automatic tests for if the installed implementation of nc supports netcatchat.
-# TODO rename notion of server_ip to reflect that it can also accept domain names.
 
 # Error on unset variables.
 set -u
@@ -109,15 +108,16 @@ Options:
     (server mode) client_ports are a space-seperated list of the avalible ports
     for clients to connect on. Each client needs their own port.
 
-  -i server_ip
-    (client mode) Server IP address.
+  -i server_address
+    (client mode) Server address.
 
   -X proxy_protocol
     (client mode) The protocol to use for the proxy. Must one of: '' (no proxy),
     'socks4', 'socks5', or 'http'.
 
   -x proxy_address[:port]
-    (client mode) Proxy IP address.
+    (client mode) Proxy address.
+    TODO add information on default port settings.
 
   -h
     Displays usage and exits.
@@ -150,13 +150,13 @@ server_port=
 client_ports=
 
 ## Client options.
-# IP of the server to connect to.
-server_ip=
-# The proxy protocol to use for the client's proxy.
+# Address of the server to connect to.
+server_address=
+# The protocol of the proxy to use.
 # Leave empty for no proxy.
 # Must be one of: '' 'socks4' 'socks5' 'http'
 proxy_protocol=
-# The address of the client's proxy.
+# The address of the proxy to use.
 # Leave empty for no proxy.
 proxy_address=
 
@@ -170,7 +170,7 @@ while getopts 'sp:c:i:X:x:hv' flag; do
         # Server options.
         c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;; # TODO check if -a is POSIX.
         # Client options.
-        i) server_ip=$OPTARG                             ;;
+        i) server_address=$OPTARG                        ;;
         X) proxy_protocol=$OPTARG                        ;;
         x) proxy_address=$OPTARG                         ;;
         # Other.
@@ -189,7 +189,7 @@ fi
 # Server options.
 #TODO validate client ports.
 # Client options.
-#TODO? validate server ip.
+#TODO? validate server_address.
 if [ -n "$proxy_protocol" ] && [ 'socks4' != "$proxy_protocol" ] &&
        [ 'socks5' != "$proxy_protocol" ] && [ 'http' != "$proxy_protocol" ]; then
     short_usage
