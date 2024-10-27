@@ -25,7 +25,6 @@
 # TODO make work with POSIX shell.
 # TODO add proper error handling.
 # TODO? add proper TUI.
-# TODO make help info not man-page like,
 # TODO add automatic tests for if the installed implementation of nc supports netcatchat.
 
 # Error on unset variables.
@@ -50,9 +49,9 @@ fatal() {
 # $2 - the string to match against.
 # $? - 0 if the string matches, else 1.
 match_regex() {
-    # Setting POSIXLY_CORRECT disables implementation-specfic extensions and
+    # Setting POSIXLY_CORRECT can disable implementation-specfic extensions and
     # behaviors.
-    POSIXLY_CORRECT='' grep -qE "$1" <<< "$2"
+    POSIXLY_CORRECT='' grep -E "$1" <<< "$2" > /dev/null
     return $?
 }
 
