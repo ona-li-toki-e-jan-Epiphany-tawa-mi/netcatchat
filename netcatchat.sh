@@ -174,18 +174,18 @@ proxy_address=
 while getopts 'sp:c:i:X:x:hv' flag; do
     case "$flag" in
         # Global options.
-        s) mode=server                                   ;;
-        p) server_port=$OPTARG                           ;;
+        s) mode=server            ;;
+        p) server_port=$OPTARG    ;;
         # Server options.
-        c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;; # TODO check if -a is POSIX.
+        c) client_ports="$OPTARG" ;;
         # Client options.
-        i) server_address=$OPTARG                        ;;
-        X) proxy_protocol=$OPTARG                        ;;
-        x) proxy_address=$OPTARG                         ;;
+        i) server_address=$OPTARG ;;
+        X) proxy_protocol=$OPTARG ;;
+        x) proxy_address=$OPTARG  ;;
         # Other.
-        h) usage;       exit                             ;;
-        v) version;     exit                             ;;
-        *) short_usage; exit 1                           ;;
+        h) usage;       exit      ;;
+        v) version;     exit      ;;
+        *) short_usage; exit 1    ;;
     esac
 done
 
@@ -230,6 +230,7 @@ fi
 # Server START                                                                 #
 ################################################################################
 
+# TODO add test for if can open port.
 # Tests if the available implementation of netcat supports the features we need,
 # and if it doesn't, exits.
 test_netcat() {
@@ -239,10 +240,49 @@ test_netcat() {
     [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
 }
 
+# Echoes the first supplied argument to stdout.
+# Echoes nothing when supplied no arguments.
+head() {
+    [ 0 -lt $# ] && echo "$1"
+}
+# Echoes every argument except the first as a space seprated list.
+# Echoes nothing when supplied 0 or 1 arguments.
+# Error on empty list.
+tail() {
+    if [ 1 -lt $# ]; then
+        shift
+        echo "$*"
+    fi
+}
+# Echoes every argument as a space seperated list.
+concat() {
+    echo "$*"
+}
+
+# Runs the port-distribution process on the server port.
+# Does not return; run as subprocess.
 handle_server_port() {
+    free_ports="$client_ports"
+    active_ports=
+
+    # TODO detect when ports are free and add them back to free_ports.
     while true; do
-        # TODO echo out client ports.
-        echo 1222 | nc -l -w 0 -p "$server_port" > /dev/null
+        if [ -n "$free_ports" ]; then
+            # shellcheck disable=2086 # We want word splitting.
+            port=$(head $free_ports)
+            # shellcheck disable=2086 # We want word splitting.
+            free_ports=$(tail $free_ports)
+
+            echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
+
+            # shellcheck disable=2086 # We want word splitting.
+            active_ports=$(concat $active_ports "$port")
+            info "incoming client: gave out port '$port'"
+        else
+            # -1 indicates that there are no ports left.
+            echo '-1' | nc -l -w 0 -p "$server_port" > /dev/null
+            info "incoming client: did not give out port; none are free"
+        fi
     done
 }
 
@@ -480,21 +520,6 @@ fi
 #                     fi
 #                 fi
 #             done
-
-#             # Distributes ports.
-#             if [ "${#avalible_ports[@]}" -gt 0 ]; then
-#                 port=${avalible_ports[0]}
-#                 echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
-
-#                 log_info "Gave out port $port"
-#                 unset -v 'avalible_ports[0]'; avalible_ports=("${avalible_ports[@]}")
-#                 active_ports["$port"]="$port"
-#                 active_port_timeout_map["$port"]=$(date +%s)
-
-#             else
-#                 echo -1 | nc -l -w 0 -p "$server_port"
-#                 log_info 'Gave out port -1 to client to due all ports being used up'
-#             fi
 #         done
 #     }
 #     distribute_ports &
