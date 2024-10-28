@@ -209,6 +209,11 @@ if [ 'client' == "$mode" ]; then
         fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X'; expected one of: '', 'socks4', 'socks5', 'http'"
     fi
     #TODO? validate proxy_address.
+    if [ 'true' == "$use_proxy" ] &&
+           { [ -z "$proxy_protocol" ] || [ -z "$proxy_address" ]; }; then
+        short_usage
+        fatal "proxy_protocol '$proxy_protocol' (supplied with '-X') and proxy_address '$proxy_address' (supplied with '-x') must either be both set or both empty"
+    fi
 fi
 
 ################################################################################
