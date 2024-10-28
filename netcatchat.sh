@@ -55,13 +55,6 @@ match_regex() {
     return $?
 }
 
-# Kills all spawned subprocesses.
-kill_subprocesses() {
-    jobs=$(jobs -p)
-    # shellcheck disable=2086 # We want word splitting.
-    [ -n "$jobs" ] && kill $jobs 2> /dev/null
-}
-
 
 
 ################################################################################
@@ -257,6 +250,13 @@ tail() {
 # Echoes every argument as a space seperated list.
 concat() {
     echo "$*"
+}
+
+# Kills all spawned subprocesses.
+kill_subprocesses() {
+    jobs=$(jobs -p)
+    # shellcheck disable=2086 # We want word splitting.
+    [ -n "$jobs" ] && kill $jobs 2> /dev/null
 }
 
 # Runs the port-distribution process on the server port.
