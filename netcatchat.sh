@@ -160,6 +160,8 @@ proxy_protocol=
 # The address of the proxy to use.
 # Leave empty for no proxy.
 proxy_address=
+# Whether to use a proxy.
+use_proxy='false'
 
 # Parsing.
 [ 0 -eq $# ] && usage && exit
@@ -180,6 +182,9 @@ while getopts 'sp:c:i:X:x:hv' flag; do
         *) short_usage; exit 1      ;;
     esac
 done
+if [ -n "$proxy_protocol" ] || [ -n "$proxy_address" ]; then
+    use_proxy='true'
+fi
 
 ## Validation.
 port_regex='[[:digit:]]{1,5}'
@@ -189,18 +194,22 @@ if ! match_regex "^$port_regex\$" "$server_port"; then
     fatal "invalid server_port '$server_port' supplied with '-p'; expected port number"
 fi
 # Server options.
-if ! match_regex "^$port_regex( $port_regex)*\$" "$client_ports"; then
-    short_usage
-    fatal "invalid client_ports '$client_ports' supplied with -c; expected space-seperated list of port numbers"
+if [ 'server' == "$mode" ]; then
+    if ! match_regex "^$port_regex( $port_regex)*\$" "$client_ports"; then
+        short_usage
+        fatal "invalid client_ports '$client_ports' supplied with -c; expected space-seperated list of port numbers"
+    fi
 fi
 # Client options.
-#TODO? validate server_address.
-if [ -n "$proxy_protocol" ] && [ 'socks4' != "$proxy_protocol" ] &&
-       [ 'socks5' != "$proxy_protocol" ] && [ 'http' != "$proxy_protocol" ]; then
-    short_usage
-    fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X'; expected one of: '', 'socks4', 'socks5', 'http'"
+if [ 'client' == "$mode" ]; then
+    #TODO? validate server_address.
+    if [ 'true' == "$use_proxy" ] && [ 'socks4' != "$proxy_protocol" ] &&
+           [ 'socks5' != "$proxy_protocol" ] && [ 'http' != "$proxy_protocol" ]; then
+        short_usage
+        fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X'; expected one of: '', 'socks4', 'socks5', 'http'"
+    fi
+    #TODO? validate proxy_address.
 fi
-#TODO? validate proxy_address.
 
 ################################################################################
 # Argument parsing END                                                         #
