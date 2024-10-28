@@ -25,7 +25,6 @@
 # TODO make work with POSIX shell.
 # TODO add proper error handling.
 # TODO? add proper TUI.
-# TODO add automatic tests for if the installed implementation of nc supports netcatchat.
 
 # Error on unset variables.
 set -u
@@ -183,13 +182,17 @@ while getopts 'sp:c:i:X:x:hv' flag; do
 done
 
 ## Validation.
+port_regex='[[:digit:]]{1,5}'
 # Global options.
-if ! match_regex '^[[:digit:]]{1,5}$' "$server_port"; then
+if ! match_regex "^$port_regex\$" "$server_port"; then
     short_usage
     fatal "invalid server_port '$server_port' supplied with '-p'; expected port number"
 fi
 # Server options.
-#TODO validate client ports.
+if ! match_regex "^$port_regex( $port_regex)*\$" "$client_ports"; then
+    short_usage
+    fatal "invalid client_ports '$client_ports' supplied with -c; expected space-seperated list of port numbers"
+fi
 # Client options.
 #TODO? validate server_address.
 if [ -n "$proxy_protocol" ] && [ 'socks4' != "$proxy_protocol" ] &&
