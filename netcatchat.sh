@@ -92,7 +92,7 @@ Forewarnings:
   installed on your system. This check is preformed automatically on startup,
   but you can aslo manually check check by running 'nc -l -w 0 -p <port>'. If
   this immediately returns, instead of waiting for input, you cannot run
-  netcatchat in server mode. client mode should still work.
+  netcatchat in server mode. Client mode should still work.
 
   OpenBSD's implementation of netcat is recommended.
 
@@ -167,18 +167,18 @@ proxy_address=
 while getopts 'sp:c:i:X:x:hv' flag; do
     case "$flag" in
         # Global options.
-        s) mode=server            ;;
-        p) server_port=$OPTARG    ;;
+        s) mode=server              ;;
+        p) server_port="$OPTARG"    ;;
         # Server options.
-        c) client_ports="$OPTARG" ;;
+        c) client_ports="$OPTARG"   ;;
         # Client options.
-        i) server_address=$OPTARG ;;
-        X) proxy_protocol=$OPTARG ;;
-        x) proxy_address=$OPTARG  ;;
+        i) server_address="$OPTARG" ;;
+        X) proxy_protocol="$OPTARG" ;;
+        x) proxy_address="$OPTARG"  ;;
         # Other.
-        h) usage;       exit      ;;
-        v) version;     exit      ;;
-        *) short_usage; exit 1    ;;
+        h) usage;       exit        ;;
+        v) version;     exit        ;;
+        *) short_usage; exit 1      ;;
     esac
 done
 
@@ -269,15 +269,15 @@ handle_server_port() {
     while true; do
         if [ -n "$free_ports" ]; then
             # shellcheck disable=2086 # We want word splitting.
-            port=$(head $free_ports)
+            port="$(head $free_ports)"
             # shellcheck disable=2086 # We want word splitting.
-            free_ports=$(tail $free_ports)
+            free_ports="$(tail $free_ports)"
 
             echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
 
             # shellcheck disable=2086 # We want word splitting.
-            active_ports=$(concat $active_ports "$port")
             info "incoming client: gave out port '$port'"
+            active_ports="$(concat $active_ports "$port")"
         else
             # -1 indicates that there are no ports left.
             echo '-1' | nc -l -w 0 -p "$server_port" > /dev/null
@@ -303,7 +303,7 @@ if [ 'server' == "$mode" ]; then
 fi
 
 ################################################################################
-# Server           END                                                         #
+# Server END                                                                   #
 ################################################################################
 
 
