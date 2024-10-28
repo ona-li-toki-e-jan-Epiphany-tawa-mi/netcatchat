@@ -226,18 +226,28 @@ fi
 # Client START                                                                 #
 ################################################################################
 
-# TODO readd chat "filtering."
-# TODO readd proxies.
 if [ 'client' == "$mode" ]; then
-    #proxy_arguments=''
-    #if [ ! "$proxy_address" = '' ]; then
-    #    proxy_arguments="-X $proxy_protocol -x $proxy_address"
-    #fi
+    # Converts the proxy protocol names netcatchat uses to those that netcat
+    # uses.
+    nc_proxy_protocol=
+    if [ 'true' == "$use_proxy" ]; then
+        info "using $proxy_protocol proxy '$proxy_address'"
+
+        case "$proxy_protocol" in
+            'http')   nc_proxy_protocol='connect' ;;
+            'socks4') nc_proxy_protocol='4'       ;;
+            'socks5') nc_proxy_protocol='5'       ;;
+            *)        fatal "unreachable"         ;;
+        esac
+    fi
 
     info "obtaining client port from $server_address:$server_port..."
-    # shellcheck disable=SC2086 # We want word splitting.
-    client_port=$(nc -v -w 1 "$server_address" "$server_port")
-    #client_port=$(nc -v -w 1 $proxy_arguments "$server_address" "$server_port")
+    client_port=
+    if [ 'true' == "$use_proxy" ]; then
+        client_port=$(nc -v -w 1 -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" "$server_port")
+    else
+        client_port=$(nc -v -w 1 "$server_address" "$server_port")
+    fi
 
     if [ "$client_port" = '' ]; then
         fatal "could not connect to $server_address:$server_port"
@@ -247,9 +257,14 @@ if [ 'client' == "$mode" ]; then
         fatal "recieved invald port $client_port from $server_address:$server_port"
     else
         info "recieved port $client_port, reconnecting to $server_address:$client_port..."
+        # TODO readd chat "filtering."
         # shellcheck disable=SC2086 # We want word splitting.
         #{ echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
-        nc -v "$server_address" "$client_port"
+        if [ 'true' == "$use_proxy" ]; then
+            nc -v -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" "$client_port"
+        else
+            nc -v "$server_address" "$client_port"
+        fi
     fi
 fi
 
