@@ -315,15 +315,17 @@ kill_subprocesses() {
 }
 
 # Runs the port-distribution process on the server port.
-# Does not return; run as subprocess.
+# Does not return.
+# $1 - command input fifo. Used to recieve commands from client port handlers.
 handle_server_port() {
+    command_fifo="$1"
+
     free_ports="$client_ports"
-    active_ports=
 
-    info "server port $server_port: started listening"
+    info "server port: started listening"
 
-    # TODO detect when ports are free and add them back to free_ports.
     while true; do
+        # Distributes out free client ports to incoming clients.
         if [ -n "$free_ports" ]; then
             # shellcheck disable=2086 # We want word splitting.
             port="$(head $free_ports)"
@@ -332,23 +334,49 @@ handle_server_port() {
 
             echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
 
-            # shellcheck disable=2086 # We want word splitting.
-            active_ports="$(concat $active_ports "$port")"
-            info "server port $server_port: gave out port '$port' to incoming client"
+            info "server port: gave out port '$port' to incoming client"
         else
             # -1 indicates that there are no ports left.
             echo '-1' | nc -l -w 0 -p "$server_port" > /dev/null
-            info "server port $server_port: did not give out port to incoming client; none are free"
+            info "server port: did not give out port to incoming client; none are free"
         fi
+
+        # Handles commands from client port handlers.
+        echo "" > "$command_fifo" & # Prevents blocking.
+        while read -r line; do
+            # shellcheck disable=2086 # We want word splitting.
+            command="$(head $line)"
+            # shellcheck disable=2086 # We want word splitting.
+            line="$(tail $line)"
+            # shellcheck disable=2086 # We want word splitting.
+            argument="$(head $line)"
+
+            if [ -n "$command" ] && [ -n "$argument" ]; then
+                case "$command" in
+                    # Marks ports that are no longer active as free.
+                    # $1 - port to free.
+                    !free)
+                        info "server port: marked port '$argument' as free"
+                        # shellcheck disable=2086 # We want word splitting.
+                        free_ports="$(concat $free_ports "$argument")"
+                        ;;
+
+                    *) fatal "unreachable" ;;
+                esac
+            fi
+        done < "$command_fifo"
     done
 }
 
 # TODO add message routing between clients.
 # TODO add basic chat filtering.
-# Does not return; run as subprocess.
+# Does not return.
 # $1 - the port to handle.
+# $2 - the server port's command input fifo. Used to send commands to the server
+#      port handler
 handle_client_port() {
     port="$1"
+    server_port_command_fifo="$2"
 
     while true; do
         info "client port $port: started listening"
@@ -356,16 +384,15 @@ handle_client_port() {
         #echo "Welcome!, You are now chatting as: $1" > "$2" &
         #nc -l -p "$1" 0<> "$2" 1<> "$3"
 
-        #log_info "Connection opened and closed on port $1"
-        #echo "!free $1" > "$distributor_command_input_fifo" &
+        info "client port $port: connection closed"
+        echo "!free $port" > "$server_port_command_fifo" &
 
-#             for other_client_port in "${client_ports[@]}"; do
-#                 if [ "$other_client_port" -ne "$1" ]; then
-#                     input_fifo="${client_input_fifos[$other_client_port]}"
-#                     echo "$1 has disconnected" 1<> "$input_fifo"
-#                 fi
-#             done
-#         done
+        #for other_client_port in "${client_ports[@]}"; do
+        #    if [ "$other_client_port" -ne "$1" ]; then
+        #        input_fifo="${client_input_fifos[$other_client_port]}"
+        #        echo "$1 has disconnected" 1<> "$input_fifo"
+        #    fi
+        #done
     done
 }
 
@@ -376,10 +403,17 @@ if [ 'server' == "$mode" ]; then
     test_netcat
     info "tests passed..."
 
+    # Interprocess communication pipes.
+    # TODO add error checking.
+    tmp="$(mktemp -d)"
+    server_port_command_fifo="$tmp/server_port_command_fifo"
+    mkfifo "$server_port_command_fifo"
+
+    # Spawns subprocesses.
     trap 'kill_subprocesses' EXIT
-    handle_server_port &
+    handle_server_port "$server_port_command_fifo" &
     for port in $client_ports; do
-        handle_client_port "$port" &
+        handle_client_port "$port" "$server_port_command_fifo" &
     done
 
     info "server started"
@@ -456,24 +490,9 @@ fi
 #     # Handles telling clients which ports are avalible.
 #     #
 #     distribute_ports() {
-#         avalible_ports=("${client_ports[@]}")
-#         active_ports=()
 #         # Used to store ports that have been distributed, but not connected to,
 #         #   so that they can be freed automatically if no one connects.
 #         active_port_timeout_map=()
-
-#         ##
-#         # Frees the given port for reuse.
-#         #
-#         # Parameters:
-#         #   $1 - the port to free.
-#         #
-#         free_port() {
-#             unset -v "active_ports[$1]"
-#             timeout="${active_port_timeout_map[$1]}"
-#             if [ "${#timeout}" -gt 0 ]; then
-#                 unset -v "active_port_timeout_map[$1]"
-#             fi
 
 #             avalible_ports+=("$1")
 #         }
@@ -493,17 +512,6 @@ fi
 #                     port=${command_arguments[1]}
 
 #                     case "${command_arguments[0]}" in
-#                         # Frees ports that are no longer in use.
-#                         !free)
-#                             if [ "$port" = "${active_ports[$port]}" ]; then
-#                                 free_port "$port"
-#                                 log_info "Port $port was freed"
-
-#                                 freed_ports["$port"]="$port"
-#                             else
-#                                 log_error "Attempted to free inactive port $port!"
-#                             fi
-#                         ;;
 #                         # Prevents a used port from timing out.
 #                         !notimeout)
 #                             timeout="${active_port_timeout_map[$port]}"
