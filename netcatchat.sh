@@ -55,6 +55,13 @@ match_regex() {
     return $?
 }
 
+# Kills all spawned subprocesses.
+kill_subprocesses() {
+    jobs=$(jobs -p)
+    # shellcheck disable=2086 # We want word splitting.
+    [ -n "$jobs" ] && kill $jobs 2> /dev/null
+}
+
 
 
 ################################################################################
@@ -85,13 +92,16 @@ Forewarnings:
 
   netcatchat does not provide encryption in of itself. It can, however, be used
   with a proxy that provides encryption, such as stunnel (http), Tor (socks5),
-  and I2P (http).
+  or I2P (http).
 
   netcatchat will not run in server mode if the system's netcat implementation
   cannot accept a wait time of 0, which depends on which implementation is
-  installed on your system, to check if you can run netcatchat, run
-  'nc -l -w 0'. if this produces an error, then you cannot run a server. The
-  client mode should still work.
+  installed on your system. This check is preformed automatically on startup,
+  but you can aslo manually check check by running 'nc -l -w 0 -p <port>'. If
+  this immediately returns, instead of waiting for input, you cannot run
+  netcatchat in server mode. client mode should still work.
+
+  OpenBSD's implementation of netcat is recommended.
 
 Options:
   -s
@@ -220,8 +230,36 @@ fi
 # Server START                                                                 #
 ################################################################################
 
+# Tests if the available implementation of netcat supports the features we need,
+# and if it doesn't, exits.
+test_netcat() {
+    # If '-w 0' works, this command should wait for input. If not, it will exit
+    # immediately.
+    timeout 1 nc -l -w 0 -p "$server_port" > /dev/null 2>&1
+    [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
+}
+
+handle_server_port() {
+    while true; do
+        # TODO echo out client ports.
+        echo 1222 | nc -l -w 0 -p "$server_port" > /dev/null
+    done
+}
+
 if [ 'server' == "$mode" ]; then
-    fatal "TODO: implement server"
+    info "starting server..."
+
+    info "testing netcat compatibility..."
+    test_netcat
+    info "tests passed..."
+
+    trap 'kill_subprocesses' EXIT
+    handle_server_port &
+
+    info "server started"
+    while true; do
+        sleep 100 # TODO do something here.
+    done
 fi
 
 ################################################################################
