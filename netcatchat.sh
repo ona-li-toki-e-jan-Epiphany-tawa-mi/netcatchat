@@ -209,8 +209,31 @@ fi
 # Client START                                                                 #
 ################################################################################
 
+# TODO readd chat "filtering."
+# TODO readd proxies.
 if [ 'client' == "$mode" ]; then
-    fatal "TODO: implement client"
+    #proxy_arguments=''
+    #if [ ! "$proxy_address" = '' ]; then
+    #    proxy_arguments="-X $proxy_protocol -x $proxy_address"
+    #fi
+
+    info "obtaining client port from $server_address:$server_port..."
+    # shellcheck disable=SC2086 # We want word splitting.
+    client_port=$(nc -v -w 1 "$server_address" "$server_port")
+    #client_port=$(nc -v -w 1 $proxy_arguments "$server_address" "$server_port")
+
+    if [ "$client_port" = '' ]; then
+        fatal "could not connect to $server_address:$server_port"
+    elif [ "$client_port" -eq -1 ]; then
+        fatal "no available client ports on $server_address:$server_port to connect to"
+    elif ! match_regex '^[[:digit:]]{1,5}$' "$client_port"; then
+        fatal "recieved invald port $client_port from $server_address:$server_port"
+    else
+        info "recieved port $client_port, reconnecting to $server_address:$client_port..."
+        # shellcheck disable=SC2086 # We want word splitting.
+        #{ echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
+        nc -v "$server_address" "$client_port"
+    fi
 fi
 
 ################################################################################
@@ -254,7 +277,7 @@ concat() {
 
 # Kills all spawned subprocesses.
 kill_subprocesses() {
-    jobs=$(jobs -p)
+    jobs="$(jobs -p)"
     # shellcheck disable=2086 # We want word splitting.
     [ -n "$jobs" ] && kill $jobs 2> /dev/null
 }
@@ -264,6 +287,8 @@ kill_subprocesses() {
 handle_server_port() {
     free_ports="$client_ports"
     active_ports=
+
+    info "server port $server_port: started listening"
 
     # TODO detect when ports are free and add them back to free_ports.
     while true; do
@@ -276,13 +301,39 @@ handle_server_port() {
             echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
 
             # shellcheck disable=2086 # We want word splitting.
-            info "incoming client: gave out port '$port'"
             active_ports="$(concat $active_ports "$port")"
+            info "server port $server_port: gave out port '$port' to incoming client"
         else
             # -1 indicates that there are no ports left.
             echo '-1' | nc -l -w 0 -p "$server_port" > /dev/null
-            info "incoming client: did not give out port; none are free"
+            info "server port $server_port: did not give out port to incoming client; none are free"
         fi
+    done
+}
+
+# TODO add message routing between clients.
+# TODO add basic chat filtering.
+# Does not return; run as subprocess.
+# $1 - the port to handle.
+handle_client_port() {
+    port="$1"
+
+    while true; do
+        info "client port $port: started listening"
+        nc -l -p "$port"
+        #echo "Welcome!, You are now chatting as: $1" > "$2" &
+        #nc -l -p "$1" 0<> "$2" 1<> "$3"
+
+        #log_info "Connection opened and closed on port $1"
+        #echo "!free $1" > "$distributor_command_input_fifo" &
+
+#             for other_client_port in "${client_ports[@]}"; do
+#                 if [ "$other_client_port" -ne "$1" ]; then
+#                     input_fifo="${client_input_fifos[$other_client_port]}"
+#                     echo "$1 has disconnected" 1<> "$input_fifo"
+#                 fi
+#             done
+#         done
     done
 }
 
@@ -295,6 +346,9 @@ if [ 'server' == "$mode" ]; then
 
     trap 'kill_subprocesses' EXIT
     handle_server_port &
+    for port in $client_ports; do
+        handle_client_port "$port" &
+    done
 
     info "server started"
     while true; do
@@ -364,52 +418,6 @@ fi
 #         pkill -P $$
 #         exit
 #     ' EXIT
-
-
-
-#     ##
-#     # Handles sending and recieving messages from an individual client port.
-#     # Will send the !free command to the port distributor when the client closes
-#     #   the connection to free up the port.
-#     #
-#     # Parameters:
-#     #   $1 - the client port to handle.
-#     #   $2 - the FIFO to send messages to the client with.
-#     #   $3 - the FIFO to recieve messages from the client with.
-#     #
-#     handle_client_connection() {
-#         while true; do
-#             log_info "Started listening on port $1"
-#             echo "Welcome!, You are now chatting as: $1" > "$2" &
-#             nc -l -p "$1" 0<> "$2" 1<> "$3"
-
-#             log_info "Connection opened and closed on port $1"
-#             echo "!free $1" > "$distributor_command_input_fifo" &
-
-#             for other_client_port in "${client_ports[@]}"; do
-#                 if [ "$other_client_port" -ne "$1" ]; then
-#                     input_fifo="${client_input_fifos[$other_client_port]}"
-#                     echo "$1 has disconnected" 1<> "$input_fifo"
-#                 fi
-#             done
-#         done
-#     }
-
-#     # Launch subprocess for each client port to handle the connection.
-#     for client_port in "${client_ports[@]}"; do
-#         input_fifo="$temporary_directory/messagein-$client_port"
-#         client_input_fifos["$client_port"]="$input_fifo"
-#         mkfifo "$input_fifo"
-#         output_fifo="$temporary_directory/messageout-$client_port"
-#         client_output_fifos["$client_port"]="$output_fifo"
-#         mkfifo "$output_fifo"
-#     done
-#     for client_port in "${client_ports[@]}"; do
-#         input_fifo="${client_input_fifos["$client_port"]}"
-#         output_fifo="${client_output_fifos["$client_port"]}"
-#         handle_client_connection "$client_port" "$input_fifo" "$output_fifo" &
-#     done
-
 
 
 #     ##
@@ -556,34 +564,4 @@ fi
 
 #         sleep 0.1
 #     done
-# }
-
-
-
-# run_client() {
-#     trap 'log_info "Shutting down..."' EXIT
-
-#     proxy_arguments=''
-#     if [ ! "$proxy_address" = '' ]; then
-#         proxy_arguments="-X $proxy_protocol -x $proxy_address"
-#     fi
-
-#     log_info "Connecting to $server_ip:$server_port..."
-#     # shellcheck disable=SC2086 # We want word splitting.
-#     port=$(nc -v -w 1 $proxy_arguments "$server_ip" "$server_port")
-
-#     if [ "$port" = '' ]; then
-#         log_error "Could not connect to $server_ip:$server_port!"
-#         exit 2
-#     elif [ "$port" -eq -1 ]; then
-#         log_error "No avalible client ports on $server_ip to connect to!"
-#         exit 3
-#     elif ! [[ "$port" =~ $port_regex ]]; then
-#         log_error "Recieved invald port $port from $server_ip:$server_port!"
-#         exit 3
-#     else
-#         log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-#         # shellcheck disable=SC2086 # We want word splitting.
-#         { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
-#     fi
 # }
