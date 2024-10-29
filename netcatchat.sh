@@ -464,16 +464,17 @@ if [ 'server' == "$mode" ]; then
     # immediately.
     timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
     [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
-    info "tests passed"
 
-    # Cleanup.
     trap '
+        info "cleaning up..."
         kill_subprocesses
         rm -r "$tmp"
+
+        info "shutting down..."
     ' EXIT
 
-    # Interprocess communication pipes.
     # TODO add error checking.
+    info "setting up interprocess communication..."
     tmp="$(mktemp -d)"
     server_port_command_fifo="$tmp/server_port_command_fifo"
     mkfifo "$server_port_command_fifo"
@@ -484,13 +485,15 @@ if [ 'server' == "$mode" ]; then
         mkfifo "$output_fifo"
     done
 
-    # Spawns subprocesses.
+    info "spawning subprocesses..."
     handle_server_port "$server_port_command_fifo" &
     for port in $client_ports; do
         handle_client_port "$port" "$tmp" "$server_port_command_fifo" &
     done
     handle_message_routing "$tmp" &
 
+    # Wait for subproccesses to start up to log as started.
+    sleep 1
     info "server started"
     join_subprocesses
 fi
