@@ -377,38 +377,6 @@ handle_server_port() {
     done
 }
 
-# TODO add basic chat filtering.
-# Does not return.
-# $1 - the port to handle.
-# $2 - the client port's input fifo that sends messages to the client.
-# $3 - the client port's output fifo that recieves messages from the client.
-# $4 - the server port's command input fifo. Used to send commands to the server
-#      port handler
-handle_client_port() {
-    port="$1"
-    input_fifo="$2"
-    output_fifo="$3"
-    server_port_command_fifo="$4"
-
-    while true; do
-        info "client port $port: started listening"
-        #nc -l -p "$port"
-        #echo "Welcome!, You are now chatting as: $1" > "$2" &
-        test_port "$port"
-        nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
-
-        info "client port $port: connection closed"
-        echo "!free $port" > "$server_port_command_fifo" &
-
-        #for other_client_port in "${client_ports[@]}"; do
-        #    if [ "$other_client_port" -ne "$1" ]; then
-        #        input_fifo="${client_input_fifos[$other_client_port]}"
-        #        echo "$1 has disconnected" 1<> "$input_fifo"
-        #    fi
-        #done
-    done
-}
-
 # Converts a client port into an input FIFO path.
 # $1 - the directory the FIFO should be in.
 # $2 - the client port.
@@ -420,6 +388,39 @@ client_port_to_input_fifo() {
 # $2 - the client port.
 client_port_to_output_fifo() {
     echo "$1/client_port_${2}_output_fifo"
+}
+
+# TODO add basic chat filtering.
+# Does not return.
+# $1 - the port to handle.
+# $2 - the temporary directory with the client port input/output FIFOs.
+# $3 - the server port's command input fifo. Used to send commands to the server
+#      port handler
+handle_client_port() {
+    port="$1"
+    tmp="$2"
+    server_port_command_fifo="$3"
+
+    input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
+    output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
+
+    while true; do
+        info "client port $port: started listening"
+        #nc -l -p "$port"
+        #echo "Welcome!, You are now chatting as: $1" > "$2" &
+        test_port "$port"
+        nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
+
+        info "client port $port: connection closed"
+        echo "!free $port" > "$server_port_command_fifo" &
+
+        for other_port in $client_ports; do
+            if [ "$port" -ne "$other_port" ]; then
+                other_input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
+                echo "[server]: $1 has disconnected" 1<> "$other_input_fifo"
+            fi
+        done
+    done
 }
 
 if [ 'server' == "$mode" ]; then
@@ -450,10 +451,7 @@ if [ 'server' == "$mode" ]; then
     # Spawns subprocesses.
     handle_server_port "$server_port_command_fifo" &
     for port in $client_ports; do
-        input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
-        output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
-        handle_client_port "$port" "$input_fifo" "$output_fifo" \
-                           "$server_port_command_fifo" &
+        handle_client_port "$port" "$tmp" "$server_port_command_fifo" &
     done
 
     info "server started"
