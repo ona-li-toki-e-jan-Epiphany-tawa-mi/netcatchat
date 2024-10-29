@@ -284,7 +284,7 @@ fi
 test_netcat() {
     # If '-w 0' works, this command should wait for input. If not, it will exit
     # immediately.
-    timeout 1 nc -l -w 0 -p "$server_port" > /dev/null 2>&1
+    timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
     [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
 }
 
@@ -332,12 +332,12 @@ handle_server_port() {
             # shellcheck disable=2086 # We want word splitting.
             free_ports="$(tail $free_ports)"
 
-            echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
+            echo "$port" | nc -l -w 0 "$server_port" > /dev/null
 
             info "server port: gave out port '$port' to incoming client"
         else
             # -1 indicates that there are no ports left.
-            echo '-1' | nc -l -w 0 -p "$server_port" > /dev/null
+            echo '-1' | nc -l -w 0 "$server_port" > /dev/null
             info "server port: did not give out port to incoming client; none are free"
         fi
 
@@ -385,7 +385,7 @@ handle_client_port() {
         info "client port $port: started listening"
         #nc -l -p "$port"
         #echo "Welcome!, You are now chatting as: $1" > "$2" &
-        nc -l -p "$port" 0<> "$input_fifo" 1<> "$output_fifo"
+        nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
 
         info "client port $port: connection closed"
         echo "!free $port" > "$server_port_command_fifo" &
