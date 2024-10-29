@@ -440,17 +440,11 @@ if [ 'server' == "$mode" ]; then
     tmp="$(mktemp -d)"
     server_port_command_fifo="$tmp/server_port_command_fifo"
     mkfifo "$server_port_command_fifo"
-    client_port_input_fifos=
-    client_port_output_fifos=
     for port in $client_ports; do
         input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
         mkfifo "$input_fifo"
-        # shellcheck disable=2086 # We want word splitting.
-        client_port_input_fifos="$(concat $client_port_input_fifos "$input_fifo")"
         output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
         mkfifo "$output_fifo"
-        # shellcheck disable=2086 # We want word splitting.
-        client_port_input_fifos="$(concat $client_port_output_fifos "$output_fifo")"
     done
 
     # Spawns subprocesses.
