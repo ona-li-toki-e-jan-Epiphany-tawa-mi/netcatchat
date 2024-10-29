@@ -126,7 +126,11 @@ Options:
   -v
     Displays version and exits.
 
-TODO: exit codes
+Exit status:
+  Under normal operation, netcatchat, whether client or server, will not exit on
+  it's own.
+
+  1 - some error occurred.
 "
 }
 
