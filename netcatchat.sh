@@ -48,6 +48,13 @@ fatal() {
     exit 1
 }
 
+# Filters out special characters from stdin.
+filter_message() {
+    while read -r line; do
+        echo "$line" | LC_ALL=C tr -c '[:print:]' ' '
+    done
+}
+
 ################################################################################
 # Global END                                                                   #
 ################################################################################
@@ -270,13 +277,14 @@ if [ 'client' == "$mode" ]; then
         fatal "recieved invald port $client_port from $server_address:$server_port"
     else
         info "recieved port $client_port, reconnecting to $server_address:$client_port..."
-        # TODO readd chat "filtering."
-        # shellcheck disable=SC2086 # We want word splitting.
-        #{ echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
+
         if [ 'true' == "$use_proxy" ]; then
-            nc -v -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" "$client_port"
+            filter_message |                                                        \
+                nc -v -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" \
+                   "$client_port" |                                                 \
+                filter_message
         else
-            nc -v "$server_address" "$client_port"
+            filter_message | nc -v "$server_address" "$client_port" | filter_message
         fi
     fi
 fi
@@ -399,7 +407,6 @@ client_port_to_output_fifo() {
     echo "$1/client_port_${2}_output_fifo"
 }
 
-# TODO add basic chat filtering.
 # Runs the process to handle and individual client on a client port.
 # Does not return.
 # $1 - the port to handle.
@@ -449,7 +456,7 @@ handle_message_routing() {
             # Some cursed logic to read with timeout.
             output="$(timeout 0.1 cat 0<> "$output_fifo")"
             if [ -n "$output" ]; then
-                message="[$port]: $output"
+                message="[$port]: $(echo "$output" | filter_message)"
                 info "$message"
 
                 # Client message is sent back to them as confirmation.
