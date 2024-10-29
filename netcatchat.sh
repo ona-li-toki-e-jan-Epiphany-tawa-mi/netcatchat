@@ -468,21 +468,28 @@ if [ 'server' == "$mode" ]; then
     trap '
         info "cleaning up..."
         kill_subprocesses
-        rm -r "$tmp"
+        [ -n "$tmp" ] && rm -r "$tmp"
 
         info "shutting down..."
     ' EXIT
 
-    # TODO add error checking.
     info "setting up interprocess communication..."
-    tmp="$(mktemp -d)"
+    if ! tmp="$(mktemp -d)"; then
+        fatal "unable to create directory with mktemp"
+    fi
     server_port_command_fifo="$tmp/server_port_command_fifo"
-    mkfifo "$server_port_command_fifo"
+    if ! mkfifo "$server_port_command_fifo"; then
+        fatal "unable to create FIFO $server_port_command_fifo"
+    fi
     for port in $client_ports; do
         input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
-        mkfifo "$input_fifo"
+        if ! mkfifo "$input_fifo"; then
+            fatal "unable to create FIFO $input_fifo"
+        fi
         output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
-        mkfifo "$output_fifo"
+        if ! mkfifo "$output_fifo"; then
+            fatal "unable to create FIFO $input_fifo"
+        fi
     done
 
     info "spawning subprocesses..."
