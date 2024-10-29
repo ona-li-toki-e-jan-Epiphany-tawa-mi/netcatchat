@@ -285,16 +285,6 @@ test_port() {
     [ 124 -ne $? ] && fatal "unable to open port '$1'"
 }
 
-# Tests if the available implementation of netcat supports the features we need,
-# and if it doesn't, exits.
-test_netcat() {
-    test_port "$server_port"
-    # If '-w 0' works, this command should wait for input. If not, it will exit
-    # immediately.
-    timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
-    [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
-}
-
 # Echoes the first supplied argument to stdout.
 # Echoes nothing when supplied no arguments.
 head() {
@@ -469,8 +459,12 @@ if [ 'server' == "$mode" ]; then
     info "starting server..."
 
     info "testing netcat compatibility..."
-    test_netcat
-    info "tests passed..."
+    test_port "$server_port"
+    # If '-w 0' works, this command should wait for input. If not, it will exit
+    # immediately.
+    timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
+    [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
+    info "tests passed"
 
     # Cleanup.
     trap '
