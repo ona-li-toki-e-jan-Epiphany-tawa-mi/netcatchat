@@ -318,7 +318,13 @@ concat() {
 kill_subprocesses() {
     jobs="$(jobs -p)"
     # shellcheck disable=2086 # We want word splitting.
-    [ -n "$jobs" ] && kill $jobs 2> /dev/null
+    [ -n "$jobs" ] && kill $jobs 2>/dev/null
+}
+# Waits until all subprocesses, at the time of calling, terminate.
+join_subprocesses() {
+    jobs="$(jobs -p)"
+    # shellcheck disable=2086 # We want word splitting.
+    [ -n "$jobs" ] && wait $jobs 2>/dev/null
 }
 
 # Runs the port-distribution process on the server port.
@@ -391,6 +397,7 @@ client_port_to_output_fifo() {
 }
 
 # TODO add basic chat filtering.
+# Runs the process to handle and individual client on a client port.
 # Does not return.
 # $1 - the port to handle.
 # $2 - the temporary directory with the client port input/output FIFOs.
@@ -420,6 +427,41 @@ handle_client_port() {
                 echo "[server]: $1 has disconnected" 1<> "$other_input_fifo"
             fi
         done
+    done
+}
+
+# Runs the proccess to handle routing chat messages between the client handlers.
+# $1 - the temporary directory with the client port input/output FIFOs.
+handle_message_routing() {
+    tmp="$1"
+
+    while true; do
+        for port in $client_ports; do
+            output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
+
+            #has_message='false'
+            #has_message='true'
+            #line=$(trim_whitespace "$line")
+
+            # Some cursed logic to read with timeout.
+            output="$(timeout 0.1 cat 0<> "$output_fifo")"
+            if [ -n "$output" ]; then
+                message="[$port]: $output"
+                info "$message"
+
+                # Client message is sent back to them as confirmation.
+                for other_port in $client_ports; do
+                    input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
+                    echo "$message" 1<> "$input_fifo"
+                done
+            fi
+
+            #if [ "$has_message" = 'true' ]; then
+            #    echo "!notimeout $client_port" > "$distributor_command_input_fifo" &
+            #fi
+        done
+
+        sleep 0.1
     done
 }
 
@@ -453,38 +495,10 @@ if [ 'server' == "$mode" ]; then
     for port in $client_ports; do
         handle_client_port "$port" "$tmp" "$server_port_command_fifo" &
     done
+    handle_message_routing "$tmp" &
 
     info "server started"
-
-    # Routes messages between clients.
-    while true; do
-        for port in $client_ports; do
-            output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
-
-            #has_message='false'
-            #has_message='true'
-            #line=$(trim_whitespace "$line")
-
-            # Some cursed logic to read with timeout.
-            output="$(timeout 0.1 cat 0<> "$output_fifo")"
-            if [ -n "$output" ]; then
-                message="[$port]: $output"
-                info "$message"
-
-                # Client message is sent back to them as confirmation.
-                for other_port in $client_ports; do
-                    input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
-                    echo "$message" 1<> "$input_fifo"
-                done
-            fi
-
-            #if [ "$has_message" = 'true' ]; then
-            #    echo "!notimeout $client_port" > "$distributor_command_input_fifo" &
-            #fi
-        done
-
-        sleep 0.1
-    done
+    join_subprocesses
 fi
 
 ################################################################################
