@@ -278,10 +278,17 @@ fi
 # Server START                                                                 #
 ################################################################################
 
-# TODO add test for if can open port.
+# Tests if the port can be opened by netcat. If not, netcatchat will crash.
+test_port() {
+    # If netcat could not open the port, this will exit immediately.
+    timeout 0.25 nc -l "$1" > /dev/null 2>&1
+    [ 124 -ne $? ] && fatal "unable to open port '$1'"
+}
+
 # Tests if the available implementation of netcat supports the features we need,
 # and if it doesn't, exits.
 test_netcat() {
+    test_port "$server_port"
     # If '-w 0' works, this command should wait for input. If not, it will exit
     # immediately.
     timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
@@ -332,10 +339,12 @@ handle_server_port() {
             # shellcheck disable=2086 # We want word splitting.
             free_ports="$(tail $free_ports)"
 
+            test_port "$server_port"
             echo "$port" | nc -l -w 0 "$server_port" > /dev/null
 
             info "server port: gave out port '$port' to incoming client"
         else
+            test_port "$port"
             # -1 indicates that there are no ports left.
             echo '-1' | nc -l -w 0 "$server_port" > /dev/null
             info "server port: did not give out port to incoming client; none are free"
@@ -385,6 +394,7 @@ handle_client_port() {
         info "client port $port: started listening"
         #nc -l -p "$port"
         #echo "Welcome!, You are now chatting as: $1" > "$2" &
+        test_port "$port"
         nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
 
         info "client port $port: connection closed"
