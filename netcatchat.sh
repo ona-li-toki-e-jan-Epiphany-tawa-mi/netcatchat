@@ -129,12 +129,13 @@ Options:
     (client mode) Server address.
 
   -X proxy_protocol
-    (client mode) The protocol to use for the proxy. Must one of: '' (no proxy),
-    'socks4', 'socks5', or 'http'.
+    (client mode) The protocol to use for the proxy. Requires '-x'.
+    Must one of: '' (no proxy), 'socks4', 'socks5', or 'http'.
 
   -x proxy_address[:port]
-    (client mode) Proxy address.
-    TODO add information on default port settings.
+    (client mode) Proxy address. Requires '-X'.
+    If the port is not specified, it defaults to 3128 for 'http' and 1080 for
+    'socks4' and 'socks5'
 
   -h
     Displays usage and exits.
