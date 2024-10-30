@@ -22,455 +22,571 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-##
-# Logs an info-level message to the stdout.
-#
-# Parameters:
-#   $1 - the message to send.
-#
-log_info() {
-    echo "[$(date '+%D %T')] INFO: $1"
+# Error on unset variables.
+set -u
+
+
+################################################################################
+# Global START                                                                 #
+################################################################################
+
+info() {
+    echo "info:    $1";
+}
+warn() {
+    echo "warning: $1" 2>&1;
+}
+error() {
+    echo "error:   $1" 2>&1;
+}
+fatal() {
+    echo "fatal:   $1" 2>&1;
+    exit 1
 }
 
-##
-# Logs an error-level message to the stderr.
-#
-# Parameters:
-#   $1 - the message to send.
-#
-log_error() {
-    echo "[$(date '+%D %T')] ERROR: $1" 1>&2
+newline='
+'
+
+# Filters out special characters (except newlines) from stdin.
+filter_message() {
+    while IFS="$newline" read -r line; do
+        echo "$line" | LC_ALL=C tr -c '[:print:]\n' ' '
+    done
 }
 
-# A regex that matches ports (really just matches with all integers.)
-port_regex='^[0-9]+$'
+################################################################################
+# Global END                                                                   #
+################################################################################
 
-# A regex that matches proxy protocols.
-proxy_regex='^(connect|4|5)$'
 
-##
-# Trims whitespace from the given strings.
-# https://stackoverflow.com/a/3352015
-#
-# Parameters:
-#   $* - the strings to trim.
-# Returns:
-#   The trimmed strings concatenated together.
-#
-trim_whitespace() {
-    local result="$*"
-    # remove leading whitespace characters
-    result="${result#"${result%%[![:space:]]*}"}"
-    # remove trailing whitespace characters
-    result="${result%"${result##*[![:space:]]}"}"
-    echo "$result"
+
+################################################################################
+# Argument parsing START                                                       #
+################################################################################
+
+# Matches an extended regular expression (ERE) against a string.
+# $1 - the ERE.
+# $2 - the string to match against.
+# $? - 0 if the string matches, else 1.
+match_regex() {
+    # Setting POSIXLY_CORRECT can disable implementation-specfic extensions and
+    # behaviors.
+    POSIXLY_CORRECT='' grep -E "$1" <<< "$2" > /dev/null
+    return $?
 }
 
-##
-# Trims whitespace from the stdin.
-# Only returns text if the resulting string is non-empty.
-#
-# Returns:
-#   The trimmed input.
-#
-trim_whitespace_stdin() {
-    local line
-    while read -r line; do
-        line=$(trim_whitespace "$line")
+usage() {
+    echo "Usages:
+  $0 [OPTIONS...]
 
-        if [ "${#line}" -gt 0 ]; then
-            echo "$line"
+A simple chat server and client that interfaces with netcat. By default,
+netcatchat will run in client mode. To run in server mode, specify -s as
+an argument.
+
+Client mode:
+  In client mode, netcatchat will attempt to connect to a netcatchat server. If
+  successful, you will join and your name will be set to the port you're on.
+
+Server mode:
+  In server mode, netcatchat will listen for and accept incoming netcatchat
+  clients and route messages between them.
+
+Forewarnings:
+  netcatchat is extremely basic; it does not come with chat filtering,
+  protections against spamming, banning users, or any other fancy business.
+
+  netcatchat does not provide encryption in of itself. It can, however, be used
+  with a proxy that provides encryption, such as stunnel (http), Tor (socks5),
+  or I2P (http).
+
+  netcatchat will not run in server mode if the system's netcat implementation
+  cannot accept a wait time of 0, which depends on which implementation is
+  installed on your system. This check is preformed automatically on startup,
+  but you can also manually check by running 'nc -l -w 0 -p <port>'. If this
+  immediately returns, instead of waiting for input, you cannot run netcatchat
+  in server mode. Client mode should still work. OpenBSD's implementation of
+  netcat is recommended.
+
+  Only printable ASCII characters are supported. Anything that is not in
+  [:print:] (see 'man tr') will be filtered out by both the server and clients.
+
+Options:
+  -s
+    Run in server mode.
+
+  -p server_port
+    (server mode) netcatchat will listen on server_port for incoming clients and
+    routes them to a client port if one is avalible.
+    (client mode) netcatchat will try to connect to the server on server_port to
+    obtain a client port to connect on.
+
+  -c client_ports
+    (server mode) client_ports are a space-seperated list of the avalible ports
+    for clients to connect on. Each client needs their own port.
+
+  -m motd
+    (server mode) The message of the day to display when a client joins.
+    Processed by printf. A single '%d', if present, will be replaced with the
+    user's port number. Defaults to no motd (an empty string.)
+
+  -t port_timeout
+    (server mode) The time, in seconds, before a client port that was given out
+    is determined to be free if it recives no activity. Defaults to 5.
+    Must be a postive integer.
+
+  -i server_address
+    (client mode) Server address.
+
+  -X proxy_protocol
+    (client mode) The protocol to use for the proxy.
+    Requires '-x'. Must one of: 'socks4', 'socks5', or 'http'.
+
+  -x proxy_address[:port]
+    (client mode) Proxy address.  If the port is not specified, it defaults to
+    3128 for 'http' and 1080 for 'socks4' and 'socks5'.
+    Requires '-X'.
+
+  -h
+    Displays usage and exits.
+
+  -v
+    Displays version and exits.
+
+Exit status:
+  Under normal operation, netcatchat, whether client or server, will not exit on
+  it's own.
+
+  1 - some error occurred.
+"
+}
+
+short_usage() {
+    echo "Try '$0 -h' for more information"
+}
+
+version() {
+    echo "netcatchat V1.0.0"
+}
+
+## Global options.
+# Whether to run as client or server.
+# Must be one of: 'client' 'server'.
+mode='client'
+# The port that users connect to in order to get a port to chat on.
+server_port=
+
+## Server options.
+# A space-seprated list of the ports that each user connects to to send and
+# recieve messages.
+client_ports=
+# The message of the day to display first when a user connects. Processed by
+# printf. A single %d, if present will be replace with the user's port number.
+motd=
+# The time, in seconds, before a port that was given out is determined to be
+# free if it recives no activity.
+# Must be a postive integer.
+port_timeout=5
+
+## Client options.
+# Address of the server to connect to.
+server_address=
+# The protocol of the proxy to use.
+# Leave empty for no proxy.
+# Must be one of: '' 'socks4' 'socks5' 'http'
+proxy_protocol=
+# The address of the proxy to use.
+# Leave empty for no proxy.
+proxy_address=
+# Whether to use a proxy.
+use_proxy='false'
+
+# Parsing.
+[ 0 -eq $# ] && usage && exit
+while getopts 'sp:c:m:t:i:X:x:hv' flag; do
+    case "$flag" in
+        # Global options.
+        s) mode=server              ;;
+        p) server_port="$OPTARG"    ;;
+        # Server options.
+        c) client_ports="$OPTARG"   ;;
+        m) motd="$OPTARG"           ;;
+        t) port_timeout="$OPTARG"   ;;
+        # Client options.
+        i) server_address="$OPTARG" ;;
+        X) proxy_protocol="$OPTARG" ;;
+        x) proxy_address="$OPTARG"  ;;
+        # Other.
+        h) usage;       exit        ;;
+        v) version;     exit        ;;
+        *) short_usage; exit 1      ;;
+    esac
+done
+
+## Validation.
+port_regex='[[:digit:]]{1,5}'
+# Global options.
+if ! match_regex "^$port_regex\$" "$server_port"; then
+    short_usage
+    fatal "invalid server_port '$server_port' supplied with '-p'; expected port number"
+fi
+# Server options.
+if [ 'server' == "$mode" ]; then
+    if ! match_regex "^$port_regex( $port_regex)*\$" "$client_ports"; then
+        short_usage
+        fatal "invalid client_ports '$client_ports' supplied with -c; expected space-seperated list of port numbers"
+    fi
+    if ! match_regex '^[[:digit:]]+$' "$port_timeout" || [ 0 -eq "$port_timeout" ]; then
+        short_usage
+        fatal "invalid port_timeout '$port_timeout' supplied with -t; expected positive integer"
+    fi
+fi
+# Client options.
+if [ 'client' == "$mode" ]; then
+    if [ -n "$proxy_protocol" ] || [ -n "$proxy_address" ]; then
+        use_proxy='true'
+    fi
+    if [ -z "$server_address" ]; then
+        short_usage
+        fatal "'-i' was not specified or an empty server_address was supplied"
+    fi
+    if [ 'true' == "$use_proxy" ]; then
+        if [ -z "$proxy_address" ]; then
+            short_usage
+            fatal "'-x' was not specified or an empty proxy_address was supplied"
+        fi
+        if [ 'socks4' != "$proxy_protocol" ] && [ 'socks5' != "$proxy_protocol" ] &&
+               [ 'http' != "$proxy_protocol" ]; then
+        short_usage
+        fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X': expected one of: 'socks4', 'socks5', 'http'"
+        fi
+    fi
+fi
+
+################################################################################
+# Argument parsing END                                                         #
+################################################################################
+
+
+
+################################################################################
+# Client START                                                                 #
+################################################################################
+
+if [ 'client' == "$mode" ]; then
+    # Converts the proxy protocol names netcatchat uses to those that netcat
+    # uses.
+    nc_proxy_protocol=
+    if [ 'true' == "$use_proxy" ]; then
+        info "using $proxy_protocol proxy '$proxy_address'"
+
+        case "$proxy_protocol" in
+            'http')   nc_proxy_protocol='connect' ;;
+            'socks4') nc_proxy_protocol='4'       ;;
+            'socks5') nc_proxy_protocol='5'       ;;
+            *)        fatal "unreachable"         ;;
+        esac
+    fi
+
+    info "obtaining client port from $server_address:$server_port..."
+    client_port=
+    if [ 'true' == "$use_proxy" ]; then
+        client_port=$(nc -v -w 1 -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" "$server_port")
+    else
+        client_port=$(nc -v -w 1 "$server_address" "$server_port")
+    fi
+
+    if [ "$client_port" = '' ]; then
+        fatal "could not connect to $server_address:$server_port"
+    elif [ "$client_port" -eq -1 ]; then
+        fatal "no available client ports on $server_address:$server_port to connect to"
+    elif ! match_regex '^[[:digit:]]{1,5}$' "$client_port"; then
+        fatal "recieved invald port $client_port from $server_address:$server_port"
+    else
+        info "recieved port $client_port, reconnecting to $server_address:$client_port..."
+
+        # The initial message indicates that the user joined, and also prevents
+        # the server from timing out the port.
+        intial_message='CONNECTED'
+
+        if [ 'true' == "$use_proxy" ]; then
+            { echo "$intial_message"; cat; } | filter_message |                     \
+                nc -v -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" \
+                   "$client_port" | filter_message
+        else
+            { echo "$intial_message"; cat; } | filter_message | \
+                nc -v "$server_address" "$client_port" | filter_message
+        fi
+    fi
+fi
+
+################################################################################
+# Client END                                                                   #
+################################################################################
+
+
+
+################################################################################
+# Server START                                                                 #
+################################################################################
+
+# Tests if the port can be opened by netcat. If not, netcatchat will crash.
+test_port() {
+    # If netcat could not open the port, this will exit immediately.
+    timeout 0.25 nc -l "$1" > /dev/null 2>&1
+    [ 124 -ne $? ] && fatal "unable to open port '$1'"
+}
+
+# Echoes the first supplied argument to stdout.
+# Echoes nothing when supplied no arguments.
+head() {
+    [ 0 -lt $# ] && echo "$1"
+}
+# Echoes every argument except the first as a space seprated list.
+# Echoes nothing when supplied 0 or 1 arguments.
+# Error on empty list.
+tail() {
+    if [ 1 -lt $# ]; then
+        shift
+        echo "$*"
+    fi
+}
+# Echoes every argument as a space seperated list.
+concat() {
+    echo "$*"
+}
+
+# Kills all spawned subprocesses.
+kill_subprocesses() {
+    jobs="$(jobs -p)"
+    # shellcheck disable=2086 # We want word splitting.
+    [ -n "$jobs" ] && kill $jobs 2>/dev/null
+}
+# Waits until all subprocesses, at the time of calling, terminate.
+join_subprocesses() {
+    jobs="$(jobs -p)"
+    # shellcheck disable=2086 # We want word splitting.
+    [ -n "$jobs" ] && wait $jobs 2>/dev/null
+}
+
+# Runs the port-distribution process on the server port.
+# Does not return.
+# $1 - command input fifo. Used to recieve commands from client port handlers.
+handle_server_port() {
+    command_fifo="$1"
+
+    free_ports="$client_ports"
+    ports_timeout_map=
+
+    info "server port: started listening"
+
+    while true; do
+        # Distributes out free client ports to incoming clients.
+        if [ -n "$free_ports" ]; then
+            # shellcheck disable=2086 # We want word splitting.
+            port="$(head $free_ports)"
+            # shellcheck disable=2086 # We want word splitting.
+            free_ports="$(tail $free_ports)"
+
+            test_port "$server_port"
+            echo "$port" | nc -l -w 0 "$server_port" > /dev/null
+
+            info "server port: gave out port '$port' to incoming client"
+            # shellcheck disable=2086 # We want word splitting.
+            ports_timeout_map="$(concat $ports_timeout_map "$port=$(date +%s)")"
+        else
+            test_port "$port"
+            # -1 indicates that there are no ports left.
+            echo '-1' | nc -l -w 0 "$server_port" > /dev/null
+            info "server port: did not give out port to incoming client; none are free"
+        fi
+
+        # List of ports that sent a !notimeout command (which means something is
+        # connected) but are marked as free.
+        unexpectedly_active_ports=
+
+        # Handles commands from other subprocesses.
+        echo "" > "$command_fifo" & # Prevents blocking.
+        while read -r line; do
+            # shellcheck disable=2086 # We want word splitting.
+            command="$(head $line)"
+            # shellcheck disable=2086 # We want word splitting.
+            line="$(tail $line)"
+            # shellcheck disable=2086 # We want word splitting.
+            argument="$(head $line)"
+
+            if [ -n "$command" ] && [ -n "$argument" ]; then
+                case "$command" in
+                    # Marks ports that are no longer active as free.
+                    # $1 - port to free.
+                    !free)
+                        info "server port: marked port '$argument' as free"
+                        # shellcheck disable=2086 # We want word splitting.
+                        free_ports="$(concat $free_ports "$argument")"
+                        ;;
+
+                    # Prevents a ports that were given out from timing out.
+                    # $1 - port to stop from timing out.
+                    !notimeout)
+                        had_timeout='false'
+
+                        if [ -n "$ports_timeout_map" ]; then
+                            new_ports_timeout_map=
+
+                            for port_time in $ports_timeout_map; do
+                                old_IFS="$IFS"; IFS='='
+                                # shellcheck disable=2086 # We want word splitting.
+                                port="$(head $port_time)"
+                                IFS="$old_IFS"
+
+                                if [ "$argument" -ne "$port" ]; then
+                                    # shellcheck disable=2086 # We want word splitting.
+                                    new_ports_timeout_map="$(concat $new_ports_timeout_map "$port=$time")"
+                                else
+                                    had_timeout='true'
+                                fi
+                            done
+
+                            ports_timeout_map="$new_ports_timeout_map"
+                        fi
+
+                        if [ 'false' == "$had_timeout" ]; then
+                            for port in $free_ports; do
+                                if [ "$argument" -eq "$port" ]; then
+                                    # shellcheck disable=2086 # We want word splitting.
+                                    unexpectedly_active_ports="$(concat $unexpectedly_active_ports "$argument")"
+                                    break
+                                fi
+                            done
+                        fi
+                        ;;
+
+                    *) fatal "unreachable" ;;
+                esac
+            fi
+        done < "$command_fifo"
+
+        # If we got !notimeout on a 'free' port, that means that something has
+        # connected to it without first connecting to the server port. Since the
+        # port is in use, we need to mark it as such.
+        if [ -n "$unexpectedly_active_ports" ]; then
+            for port in $unexpectedly_active_ports; do
+                warn "server port: unexpected connection on client port '$port'; marking as active"
+
+                new_free_ports=
+                for free_port in $free_ports; do
+                    if [ "$port" -ne "$free_port" ]; then
+                        # shellcheck disable=2086 # We want word splitting.
+                        new_free_ports="$(concat $new_free_ports "$free_port")"
+                    fi
+                done
+                free_ports="$new_free_ports"
+            done
+        fi
+
+        # Frees ports that have been given out but no client has connected to.
+        if [ -n "$ports_timeout_map" ]; then
+            new_ports_timeout_map=
+
+            for port_time in $ports_timeout_map; do
+                old_IFS="$IFS"; IFS='='
+                # shellcheck disable=2086 # We want word splitting.
+                port="$(head $port_time)"
+                # shellcheck disable=2086 # We want word splitting.
+                time="$(tail $port_time)"
+                IFS="$old_IFS"
+
+                current_time=$(date +%s)
+                if (( current_time - time > port_timeout )); then
+                    # shellcheck disable=2086 # We want word splitting.
+                    free_ports="$(concat $free_ports "$port")"
+                    info "server port: timed out port '$port'"
+                else
+                    # shellcheck disable=2086 # We want word splitting.
+                    new_ports_timeout_map="$(concat $new_ports_timeout_map "$port=$time")"
+                fi
+            done
+
+            ports_timeout_map="$new_ports_timeout_map"
         fi
     done
 }
 
-
-
-print_usage() {
-    printf "NAME
-\tnetcatchat - simple chat server and client using netcat
-
-SYNOPSIS
-\tnetcatchat -h
-\tnetcatchat -v
-\tnetcatchat [-p server_port] [-i server_ip] [-x proxy_address[:port]
-\t           [-X proxy_protocol]]
-\tnetcatchat -s [-p server_port] [-c client_ports]
-
-DESCRIPTION
-\tA simple chat server and client that interfaces with netcat. By default,
-\tnetcatchat will run in client mode. To run in server mode, specify -s as
-\tan argument.
-
-\tBy default, the client will connect to 127.0.0.1:2000, see the OPTIONS
-\tsection for how to change that.
-
-\tBy default, the server will listen on port 2000 to give out ports 2001-2010
-\tfor clients to connect to. See the OPTIONS section for how to change that.
-
-\tEach client will have the port that they are connected on as their username.
-
-\tThis chat system is extremely basic. It will not check if multiple clients
-\tare connected from the same ip. It will not block or rate-limit spammers.
-\tSomeone could easily use a script to steal all the ports and prevent people
-\tfrom connecting. There is absolutely no mechanism for moderation. No
-\tattempts are made at encryption. Basically, proceed with caution.
-
-\tnetcatchat CAN be used with a proxy though, so you can achieve encryption
-\tthrough the use of Tor or other anonymizing networks. Or, you could perhaps
-\tuse stunnel to make an SSL tunnel to use.
-
-\tThere is the possiblity for someone to make their own script to connect to
-\tthe server_port and not reconnect on a client port, or connect directly to a
-\tclient port. There are checks in place to make sure that ports dished out
-\tfrom the server_port are freed if unused and locked (as-in it won't try to
-\tgive someone that port to connect on as it is busy) if someone decides to
-\tdirectly connect to a client port, so such \"attacks\" should not be too big
-\tof an issue.
-
-\tNote that netcatchat will not run in server mode if netcat cannot accept a
-\twait time of 0, which depends on which implementation is installed on your
-\tsystem, to check if you can run netcatchat, run 'nc -l -w 0'. if this
-\tproduces an error, then you cannot run a server. The client mode should still
-\twork.
-
-OPTIONS
-\t-s
-\t\tBy default, netcatchat will run in client mode and try to connect to a
-\t\tserver. Specifying -s will, instead, make it run in server mode.
-
-\t-p server_port
-\t\tIn server mode, netcatchat will listen on server_port for incoming chat
-\t\tclients and routes them to a client port if one is avalible. On client
-\t\tmode, netcatchat will try to connect to the server on server_port to
-\t\tfigure out which client port to connect on. Defaults to 2000
-
-\t-c client_ports
-\t\tServer mode only. client_ports are the avalible ports for clients to
-\t\tconnect on. Each client needs their own port, so the maximum number of
-\t\tusers will be limited by how many are supplied. Defaults to 2001-2010
-\t\t(inclusive.)
-
-\t-i server_ip
-\t\tClient mode only. Will try to connect to the server at server_ip. Defaults
-\t\tto 127.0.0.1, localhost.
-
-\t-X proxy_protocol
-\t\tClient mode only. The protocol to use for the proxy. Must be either:
-\t\t4 - SOCKS4, 5 - SOCKS5, or connect - HTTPS. SOCKS5 is used by
-\t\tdefault if not specified. Must be used with -x.
-
-\t-x proxy_address[:port]
-\t\tClient mode only. The address of the proxy to use.
-
-\t-h
-\t\tDisplays help text and exits.
-
-\t-v
-\t\tDisplays version text and exits.
-
-RETURN CODES
-\tIf the command line arguments fail to parse, 1 will be returned. In server
-\tmode, netcatchat will not exit on it's own; no error codes will be returned.
-\tIn client mode, netcatchat will not exit on it's own under normal conditions.
-\tIf it failed to connect, 2 will be returned. If there is no room on the
-\tserver, or invalid data was recieved from the server, 3 will be returned.
-
-AUTHOR
-\tona li toki e jan Epiphany tawa mi.
-
-BUGS
-\tReport bugs to
-\t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat/issues>.
-
-COPYRIGHT:
-\tCopyright © 2023-2024 ona li toki e jan Epiphany tawa mi. License: MIT. This
-\tis free software; you are free to modify and redistribute it. See the source
-\tor visit <https://mit-license.org> for the full terms of the license. THIS
-\tSOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND.
-
-SEE ALSO:
-\tGitHub repository:
-\t<https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat>
-"
+# Converts a client port into an input FIFO path.
+# $1 - the directory the FIFO should be in.
+# $2 - the client port.
+client_port_to_input_fifo() {
+    echo "$1/client_port_${2}_input_fifo"
+}
+# Converts a client port into an output FIFO path.
+# $1 - the directory the FIFO should be in.
+# $2 - the client port.
+client_port_to_output_fifo() {
+    echo "$1/client_port_${2}_output_fifo"
 }
 
-print_version() {
-    echo "netcatchat V0.1.2"
-}
+# Runs the process to handle and individual client on a client port.
+# Does not return.
+# $1 - the port to handle.
+# $2 - the temporary directory with the client port input/output FIFOs.
+# $3 - the server port's command input fifo. Used to send commands to the server
+#      port handler
+handle_client_port() {
+    port="$1"
+    tmp="$2"
+    server_port_command_fifo="$3"
 
-# The port that users connect to in order to get a port to chat on.
-server_port=2000
-# (server) The ports that each user uses to send and recieve messages.
-client_ports=({2001..2010})
-# (client) IP of the server to connect to.
-server_ip=127.0.0.1
-# either 'client' or 'server'.
-type=client
-# The proxy protocol to use for the client's proxy. Defaults to SOCKS5.
-proxy_protocol=5
-# The proxy address to use for the client.
-proxy_address=''
+    input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
+    output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
 
-while getopts 'sp:c:i:X:x:hv' flag; do
-    case "$flag" in
-        s) type=server                                   ;;
-        p) server_port="$OPTARG"                         ;;
-        c) IFS=" " read -r -a client_ports <<< "$OPTARG" ;;
-        i) server_ip="$OPTARG"                           ;;
-        X) proxy_protocol="$OPTARG"                      ;;
-        x) proxy_address="$OPTARG"                       ;;
-        h) print_usage;   exit                           ;;
-        v) print_version; exit                           ;;
-        *) print_usage;   exit 1                         ;;
-    esac
-done
+    while true; do
+        info "client port $port: started listening"
+        if [ -n "$motd" ]; then
+            # shellcheck disable=SC2059 # We want to use "variables" in the
+            # printf here.
+            printf "$motd" "$port" > "$input_fifo" &
+        fi
+        test_port "$port"
+        nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
 
-option_parsing_failed='false'
+        info "client port $port: connection closed"
+        echo "!free $port" > "$server_port_command_fifo" &
 
-if ! [[ "$server_port" =~ $port_regex ]]; then
-    log_error "netcatchat: invalid port $server_port specfied with argument -p"
-    option_parsing_failed='true'
-fi
-
-for client_port in "${client_ports[@]}"; do
-    if ! [[ "$client_port" =~ $port_regex ]]; then
-        log_error "netcatchat: invalid client_port specfied with argument -c"
-        option_parsing_failed='true'
-    fi
-done
-
-if ! [[ "$proxy_protocol" =~ $proxy_regex ]]; then
-    log_error "netcatchat: invalid port $server_port specfied with argument -p"
-    option_parsing_failed='true'
-fi
-
-if [ "$option_parsing_failed" = 'true' ]; then
-    exit 1
-fi
-
-run_server() {
-    temporary_directory=$(mktemp -d)
-    # Array between client ports and their FIFOs for sending messages.
-    client_input_fifos=()
-    # Array between client ports and their FIFOs for recieving messages.
-    client_output_fifos=()
-    # A FIFO for the port distributor subprocess to recieve commands from.
-    distributor_command_input_fifo="$temporary_directory/commandin"
-    mkfifo "$distributor_command_input_fifo"
-
-
-
-    trap '
-        log_info "Shutting down..."
-
-        rm -rf "$temporary_directory"
-
-        pkill -P $$
-        exit
-    ' EXIT
-
-
-
-    ##
-    # Handles sending and recieving messages from an individual client port.
-    # Will send the !free command to the port distributor when the client closes
-    #   the connection to free up the port.
-    #
-    # Parameters:
-    #   $1 - the client port to handle.
-    #   $2 - the FIFO to send messages to the client with.
-    #   $3 - the FIFO to recieve messages from the client with.
-    #
-    handle_client_connection() {
-        while true; do
-            log_info "Started listening on port $1"
-            echo "Welcome!, You are now chatting as: $1" > "$2" &
-            nc -l -p "$1" 0<> "$2" 1<> "$3"
-
-            log_info "Connection opened and closed on port $1"
-            echo "!free $1" > "$distributor_command_input_fifo" &
-
-            for other_client_port in "${client_ports[@]}"; do
-                if [ "$other_client_port" -ne "$1" ]; then
-                    input_fifo="${client_input_fifos[$other_client_port]}"
-                    echo "$1 has disconnected" 1<> "$input_fifo"
-                fi
-            done
-        done
-    }
-
-    # Launch subprocess for each client port to handle the connection.
-    for client_port in "${client_ports[@]}"; do
-        input_fifo="$temporary_directory/messagein-$client_port"
-        client_input_fifos["$client_port"]="$input_fifo"
-        mkfifo "$input_fifo"
-        output_fifo="$temporary_directory/messageout-$client_port"
-        client_output_fifos["$client_port"]="$output_fifo"
-        mkfifo "$output_fifo"
-    done
-    for client_port in "${client_ports[@]}"; do
-        input_fifo="${client_input_fifos["$client_port"]}"
-        output_fifo="${client_output_fifos["$client_port"]}"
-        handle_client_connection "$client_port" "$input_fifo" "$output_fifo" &
-    done
-
-
-
-    ##
-    # Handles telling clients which ports are avalible.
-    #
-    distribute_ports() {
-        avalible_ports=("${client_ports[@]}")
-        active_ports=()
-        # Used to store ports that have been distributed, but not connected to,
-        #   so that they can be freed automatically if no one connects.
-        active_port_timeout_map=()
-
-        ##
-        # Frees the given port for reuse.
-        #
-        # Parameters:
-        #   $1 - the port to free.
-        #
-        free_port() {
-            unset -v "active_ports[$1]"
-            timeout="${active_port_timeout_map[$1]}"
-            if [ "${#timeout}" -gt 0 ]; then
-                unset -v "active_port_timeout_map[$1]"
+        for other_port in $client_ports; do
+            if [ "$port" -ne "$other_port" ]; then
+                other_input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
+                echo "[server]: $1 has disconnected" 1<> "$other_input_fifo"
             fi
+        done
+    done
+}
 
-            avalible_ports+=("$1")
-        }
+# Runs the proccess to handle routing chat messages between the client handlers.
+# $1 - the temporary directory with the client port input/output FIFOs.
+# $2 - the server port's command input fifo. Used to send commands to the server
+#      port handler
+handle_message_routing() {
+    tmp="$1"
+    server_port_command_fifo="$2"
 
-        while true; do
-            # Temporarily stores the ports freed with !free.
-            freed_ports=()
-            # Temporarily stores the ports marked with !notimeout that do not
-            #   have a timeout.
-            timeoutless_notimeout_ports=()
-            # Handles commands from other processes ran by this script.
-            echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
-            while read -r line; do
-                IFS=" " read -r -a command_arguments <<< "$line"
+    while true; do
+        for port in $client_ports; do
+            output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
 
-                if [ "${#command_arguments[@]}" -ge 2 ]; then
-                    port=${command_arguments[1]}
+            # Some cursed logic to read with timeout.
+            # Extra tr to filter out excess newlines.
+            output="$(timeout 0.1 cat 0<> "$output_fifo" | filter_message | LC_ALL=C tr '\n' ' ')"
+            if [ -n "$output" ]; then
+                message="[$port]: $output"
+                info "$message"
 
-                    case "${command_arguments[0]}" in
-                        # Frees ports that are no longer in use.
-                        !free)
-                            if [ "$port" = "${active_ports[$port]}" ]; then
-                                free_port "$port"
-                                log_info "Port $port was freed"
-
-                                freed_ports["$port"]="$port"
-                            else
-                                log_error "Attempted to free inactive port $port!"
-                            fi
-                        ;;
-                        # Prevents a used port from timing out.
-                        !notimeout)
-                            timeout="${active_port_timeout_map[$port]}"
-
-                            if [ "${#timeout}" -gt 0 ]; then
-                                unset -v "active_port_timeout_map[$port]"
-                            else
-                                timeoutless_notimeout_ports["$port"]=$port
-                            fi
-                        ;;
-                    esac
-                fi
-            done < "$distributor_command_input_fifo"
-
-            # If we got a !notimeout on an 'avalible' port, that means that
-            #   someone has connected to it without first connecting to the
-            #   server port. Since the port is in use, we need to mark it as
-            #   active.
-            for notimeout_port in "${timeoutless_notimeout_ports[@]}"; do
-                # Freed ports are guaranteed inactive.
-                if [ "${#freed_ports[$notimeout_port]}" -gt 0 ]; then
-                    continue
-                fi
-
-                was_port_locked='false'
-
-                for (( i=0; i < ${#avalible_ports[@]}; ++i )); do
-                    avalible_port=${avalible_ports[$i]}
-                    if [ "$notimeout_port" = "$avalible_port" ]; then
-                        was_port_locked='true'
-                        unset -v 'avalible_ports[i]';
-                        active_ports["$avalible_port"]="$avalible_port"
-
-                        log_info "Found unexpected connection on port $avalible_port; marking as active"
-                        break
-                    fi
+                # Client message is sent back to them as confirmation.
+                for other_port in $client_ports; do
+                    input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
+                    echo "$message" 1<> "$input_fifo"
                 done
 
-                if [ "$was_port_locked" = 'true' ]; then
-                    avalible_ports=("${avalible_ports[@]}")
-                fi
-            done
-
-            # Frees ports that no one has connected to.
-            for active_port in "${active_ports[@]}"; do
-                timeout=${active_port_timeout_map[$active_port]}
-
-                if [ "${#timeout}" -gt 0 ]; then
-                    current_time=$(date +%s)
-                    if (( current_time - timeout > 3 )); then
-                        free_port "$active_port"
-                        unset -v "active_port_timeout_map[$active_port]"
-                        log_info "Timed out port $active_port"
-                    fi
-                fi
-            done
-
-            # Distributes ports.
-            if [ "${#avalible_ports[@]}" -gt 0 ]; then
-                port=${avalible_ports[0]}
-                echo "$port" | nc -l -w 0 -p "$server_port" > /dev/null
-
-                log_info "Gave out port $port"
-                unset -v 'avalible_ports[0]'; avalible_ports=("${avalible_ports[@]}")
-                active_ports["$port"]="$port"
-                active_port_timeout_map["$port"]=$(date +%s)
-
-            else
-                echo -1 | nc -l -w 0 -p "$server_port"
-                log_info 'Gave out port -1 to client to due all ports being used up'
-            fi
-        done
-    }
-    distribute_ports &
-
-
-
-    # Handles sending messages between connected clients.
-    while true; do
-        for client_port in "${client_ports[@]}"; do
-            output_fifo=${client_output_fifos[$client_port]}
-            has_message='false'
-
-            while read -r -t 0; do
-                has_message='true'
-                read -r line
-                line=$(trim_whitespace "$line")
-
-                if [ "${#line}" -gt 0 ]; then
-                    message="[$client_port]: $line"
-                    log_info "$message"
-
-                    # Client message is sent back to them as confirmation.
-                    for other_client_port in "${client_ports[@]}"; do
-                        input_fifo="${client_input_fifos[$other_client_port]}"
-                        echo "$message" 1<> "$input_fifo"
-                    done
-                fi
-            done 0<> "$output_fifo"
-
-            if [ "$has_message" = 'true' ]; then
-                echo "!notimeout $client_port" > "$distributor_command_input_fifo" &
+                # Prevents port from timing out since a client is using it.
+                echo "!notimeout $port" > "$server_port_command_fifo" &
             fi
         done
 
@@ -478,43 +594,56 @@ run_server() {
     done
 }
 
+if [ 'server' == "$mode" ]; then
+    info "starting server..."
 
+    info "testing netcat compatibility..."
+    test_port "$server_port"
+    # If '-w 0' works, this command should wait for input. If not, it will exit
+    # immediately.
+    timeout 0.25 nc -l -w 0 "$server_port" > /dev/null 2>&1
+    [ 124 -ne $? ] && fatal "the available netcat implementation does not support a wait time of 0. Have you tried the OpenBSD implementation?"
 
-run_client() {
-    trap 'log_info "Shutting down..."' EXIT
+    trap '
+        info "cleaning up..."
+        kill_subprocesses
+        [ -n "$tmp" ] && rm -r "$tmp"
 
-    proxy_arguments=''
-    if [ ! "$proxy_address" = '' ]; then
-        proxy_arguments="-X $proxy_protocol -x $proxy_address"
+        info "shutting down..."
+    ' EXIT
+
+    info "setting up interprocess communication..."
+    if ! tmp="$(mktemp -d)"; then
+        fatal "unable to create directory with mktemp"
     fi
-
-    log_info "Connecting to $server_ip:$server_port..."
-    # shellcheck disable=SC2086 # We want word splitting.
-    port=$(nc -v -w 1 $proxy_arguments "$server_ip" "$server_port")
-
-    if [ "$port" = '' ]; then
-        log_error "Could not connect to $server_ip:$server_port!"
-        exit 2
-    elif [ "$port" -eq -1 ]; then
-        log_error "No avalible client ports on $server_ip to connect to!"
-        exit 3
-    elif ! [[ "$port" =~ $port_regex ]]; then
-        log_error "Recieved invald port $port from $server_ip:$server_port!"
-        exit 3
-    else
-        log_info "Recieved port $port, reconnecting to $server_ip:$port..."
-        # shellcheck disable=SC2086 # We want word splitting.
-        { echo "CONNECTED" ; cat ; } | trim_whitespace_stdin | nc -v $proxy_arguments "$server_ip" "$port"
+    server_port_command_fifo="$tmp/server_port_command_fifo"
+    if ! mkfifo "$server_port_command_fifo"; then
+        fatal "unable to create FIFO $server_port_command_fifo"
     fi
-}
+    for port in $client_ports; do
+        input_fifo="$(client_port_to_input_fifo "$tmp" "$port")"
+        if ! mkfifo "$input_fifo"; then
+            fatal "unable to create FIFO $input_fifo"
+        fi
+        output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
+        if ! mkfifo "$output_fifo"; then
+            fatal "unable to create FIFO $input_fifo"
+        fi
+    done
 
+    info "spawning subprocesses..."
+    handle_server_port "$server_port_command_fifo" &
+    for port in $client_ports; do
+        handle_client_port "$port" "$tmp" "$server_port_command_fifo" &
+    done
+    handle_message_routing "$tmp" "$server_port_command_fifo" &
 
-
-if [ "$type" = "server" ]; then
-    run_server
-elif [ "$type" = "client" ]; then
-    run_client
-else
-    log_error "Unknown run type '$type'!"
-    exit 1
+    # Wait for subproccesses to start up to log as started.
+    sleep 1
+    info "server started"
+    join_subprocesses
 fi
+
+################################################################################
+# Server END                                                                   #
+################################################################################

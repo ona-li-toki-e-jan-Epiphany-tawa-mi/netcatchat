@@ -39,10 +39,9 @@
         devShells = forAllSystems ({ pkgs }: {
           default = with pkgs; mkShell {
             nativeBuildInputs = [
-              bash
-
               netcat-openbsd
-              procps
+
+              shellcheck
             ];
           };
         });
