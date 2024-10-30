@@ -22,9 +22,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# TODO? add proper TUI.
-# TODO? add configurable MOTD.
-
 # Error on unset variables.
 set -u
 
