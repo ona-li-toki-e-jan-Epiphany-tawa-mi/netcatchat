@@ -48,10 +48,10 @@ fatal() {
     exit 1
 }
 
-# Filters out special characters from stdin.
+# Filters out special characters (except newlines) from stdin.
 filter_message() {
     while read -r line; do
-        echo "$line" | LC_ALL=C tr -c '[:print:]' ' '
+        echo "$line" | LC_ALL=C tr -c '[:print:]\n' ' '
     done
 }
 
@@ -452,12 +452,12 @@ handle_message_routing() {
 
             #has_message='false'
             #has_message='true'
-            #line=$(trim_whitespace "$line")
 
             # Some cursed logic to read with timeout.
-            output="$(timeout 0.1 cat 0<> "$output_fifo")"
+            # Extra tr to filter out excess newlines.
+            output="$(timeout 0.1 cat 0<> "$output_fifo" | filter_message | LC_ALL=C tr '\n' ' ')"
             if [ -n "$output" ]; then
-                message="[$port]: $(echo "$output" | filter_message)"
+                message="[$port]: $output"
                 info "$message"
 
                 # Client message is sent back to them as confirmation.
