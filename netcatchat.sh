@@ -283,13 +283,15 @@ if [ 'client' == "$mode" ]; then
     else
         info "recieved port $client_port, reconnecting to $server_address:$client_port..."
 
+        intial_message='CONNECTED'
+
         if [ 'true' == "$use_proxy" ]; then
-            filter_message |                                                        \
+            { echo "$intial_message"; cat; } | filter_message |                     \
                 nc -v -X "$nc_proxy_protocol" -x "$proxy_address" "$server_address" \
-                   "$client_port" |                                                 \
-                filter_message
+                   "$client_port" | filter_message
         else
-            filter_message | nc -v "$server_address" "$client_port" | filter_message
+            { echo "$intial_message"; cat; } | filter_message | \
+                nc -v "$server_address" "$client_port" | filter_message
         fi
     fi
 fi
