@@ -129,6 +129,11 @@ Options:
     (server mode) client_ports are a space-seperated list of the avalible ports
     for clients to connect on. Each client needs their own port.
 
+  -m motd
+    (server mode) The message of the day to display when a client joins.
+    Processed by printf. A single '%d', if present will be replaced with the
+    user's port number.
+
   -i server_address
     (client mode) Server address.
 
@@ -174,6 +179,9 @@ server_port=
 # A space-seprated list of the ports that each user connects to to send and
 # recieve messages.
 client_ports=
+# The message of the day to display first when a user connects. Processed by
+# printf. A single %d, if present will be replace with the user's port number.
+motd=
 
 ## Client options.
 # Address of the server to connect to.
@@ -190,13 +198,14 @@ use_proxy='false'
 
 # Parsing.
 [ 0 -eq $# ] && usage && exit
-while getopts 'sp:c:i:X:x:hv' flag; do
+while getopts 'sp:c:m:i:X:x:hv' flag; do
     case "$flag" in
         # Global options.
         s) mode=server              ;;
         p) server_port="$OPTARG"    ;;
         # Server options.
         c) client_ports="$OPTARG"   ;;
+        m) motd="$OPTARG"           ;;
         # Client options.
         i) server_address="$OPTARG" ;;
         X) proxy_protocol="$OPTARG" ;;
@@ -207,9 +216,6 @@ while getopts 'sp:c:i:X:x:hv' flag; do
         *) short_usage; exit 1      ;;
     esac
 done
-if [ -n "$proxy_protocol" ] || [ -n "$proxy_address" ]; then
-    use_proxy='true'
-fi
 
 ## Validation.
 port_regex='[[:digit:]]{1,5}'
@@ -227,6 +233,9 @@ if [ 'server' == "$mode" ]; then
 fi
 # Client options.
 if [ 'client' == "$mode" ]; then
+    if [ -n "$proxy_protocol" ] || [ -n "$proxy_address" ]; then
+        use_proxy='true'
+    fi
     if [ -z "$server_address" ]; then
         short_usage
         fatal "'-i' was not specified or an empty server_address was supplied"
@@ -523,7 +532,11 @@ handle_client_port() {
 
     while true; do
         info "client port $port: started listening"
-        echo "[server] Welcome!, You are now chatting as: $port" > "$input_fifo" &
+        if [ -n "$motd" ]; then
+            # shellcheck disable=SC2059 # We want to use "variables" in the
+            # printf here.
+            printf "$motd" "$port" > "$input_fifo" &
+        fi
         test_port "$port"
         nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
 
