@@ -30,7 +30,7 @@ a wait time of 0, which depends on the implementation is installed on your
 system. To check if you can run a server, run the following netcat command:
 
 ```sh
-nc -l -w 0
+nc -l -w 0 -p <port>
 ```
 
 The server will also automatically run this test. If it immediately exits, you
