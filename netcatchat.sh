@@ -47,9 +47,12 @@ fatal() {
     exit 1
 }
 
+newline='
+'
+
 # Filters out special characters (except newlines) from stdin.
 filter_message() {
-    while read -r line; do
+    while IFS="$newline" read -r line; do
         echo "$line" | LC_ALL=C tr -c '[:print:]\n' ' '
     done
 }
