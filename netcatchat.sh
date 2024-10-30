@@ -77,9 +77,7 @@ match_regex() {
 
 usage() {
     echo "Usages:
-  $0 -h
-  $0 -v
-  $0 [-s] [-p server_port] [-i server_ip] [-x proxy_address[:port] [-X proxy_protocol]]
+  $0 [OPTIONS...]
 
 A simple chat server and client that interfaces with netcat. By default,
 netcatchat will run in client mode. To run in server mode, specify -s as
@@ -128,7 +126,7 @@ Options:
 
   -m motd
     (server mode) The message of the day to display when a client joins.
-    Processed by printf. A single '%d', if present will be replaced with the
+    Processed by printf. A single '%d', if present, will be replaced with the
     user's port number. Defaults to no motd (an empty string.)
 
   -t port_timeout
