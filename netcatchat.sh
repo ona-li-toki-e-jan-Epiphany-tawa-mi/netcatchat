@@ -25,6 +25,7 @@
 # TODO make work with POSIX shell.
 # TODO add proper error handling.
 # TODO? add proper TUI.
+# TODO? add configurable MOTD.
 
 # Error on unset variables.
 set -u
@@ -427,8 +428,7 @@ handle_client_port() {
 
     while true; do
         info "client port $port: started listening"
-        #nc -l -p "$port"
-        #echo "Welcome!, You are now chatting as: $1" > "$2" &
+        echo "[server] Welcome!, You are now chatting as: $port" > "$input_fifo" &
         test_port "$port"
         nc -l "$port" 0<> "$input_fifo" 1<> "$output_fifo"
 
