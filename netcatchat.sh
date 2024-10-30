@@ -22,8 +22,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# TODO make work with POSIX shell.
-# TODO add proper error handling.
 # TODO? add proper TUI.
 # TODO? add configurable MOTD.
 
