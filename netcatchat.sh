@@ -379,6 +379,10 @@ handle_server_port() {
             info "server port: did not give out port to incoming client; none are free"
         fi
 
+        # List of ports that sent a !notimeout command (which means something is
+        # connected) but are marked as free.
+        unexpectedly_active_ports=
+
         # Handles commands from other subprocesses.
         echo "" > "$command_fifo" & # Prevents blocking.
         while read -r line; do
@@ -402,6 +406,8 @@ handle_server_port() {
                     # Prevents a ports that were given out from timing out.
                     # $1 - port to stop from timing out.
                     !notimeout)
+                        had_timeout='false'
+
                         if [ -n "$ports_timeout_map" ]; then
                             new_ports_timeout_map=
 
@@ -414,10 +420,22 @@ handle_server_port() {
                                 if [ "$argument" -ne "$port" ]; then
                                     # shellcheck disable=2086 # We want word splitting.
                                     new_ports_timeout_map="$(concat $new_ports_timeout_map "$port=$time")"
+                                else
+                                    had_timeout='true'
                                 fi
                             done
 
                             ports_timeout_map="$new_ports_timeout_map"
+                        fi
+
+                        if [ 'false' == "$had_timeout" ]; then
+                            for port in $free_ports; do
+                                if [ "$argument" -eq "$port" ]; then
+                                    # shellcheck disable=2086 # We want word splitting.
+                                    unexpectedly_active_ports="$(concat $unexpectedly_active_ports "$argument")"
+                                    break
+                                fi
+                            done
                         fi
                         ;;
 
@@ -426,34 +444,23 @@ handle_server_port() {
             fi
         done < "$command_fifo"
 
-        #If we got a !notimeout on an 'avalible' port, that means that
-        #   someone has connected to it without first connecting to the
-        #   server port. Since the port is in use, we need to mark it as
-        #   active.
-#        for notimeout_port in "${timeoutless_notimeout_ports[@]}"; do
-#            # Freed ports are guaranteed inactive.
-#            if [ "${#freed_ports[$notimeout_port]}" -gt 0 ]; then
-#                continue
-#            fi
-#
-#            was_port_locked='false'
-#
-#            for (( i=0; i < ${#avalible_ports[@]}; ++i )); do
-#                avalible_port=${avalible_ports[$i]}
-#                if [ "$notimeout_port" = "$avalible_port" ]; then
-#                    was_port_locked='true'
-#                    unset -v 'avalible_ports[i]';
-#                    active_ports["$avalible_port"]="$avalible_port"
-#
-#                    log_info "Found unexpected connection on port $avalible_port; marking as active"
-#                    break
-#                fi
-#            done
-#
-#            if [ "$was_port_locked" = 'true' ]; then
-#                avalible_ports=("${avalible_ports[@]}")
-#            fi
-#        done
+        # If we got !notimeout on a 'free' port, that means that something has
+        # connected to it without first connecting to the server port. Since the
+        # port is in use, we need to mark it as such.
+        if [ -n "$unexpectedly_active_ports" ]; then
+            for port in $unexpectedly_active_ports; do
+                warn "server port: unexpected connection on client port '$port'; marking as active"
+
+                new_free_ports=
+                for free_port in $free_ports; do
+                    if [ "$port" -ne "$free_port" ]; then
+                        # shellcheck disable=2086 # We want word splitting.
+                        new_free_ports="$(concat $new_free_ports "$free_port")"
+                    fi
+                done
+                free_ports="$new_free_ports"
+            done
+        fi
 
         # Frees ports that have been given out but no client has connected to.
         # TODO make port timeout configurable.
