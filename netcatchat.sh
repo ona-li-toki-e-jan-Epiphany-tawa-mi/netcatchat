@@ -104,11 +104,13 @@ Forewarnings:
   netcatchat will not run in server mode if the system's netcat implementation
   cannot accept a wait time of 0, which depends on which implementation is
   installed on your system. This check is preformed automatically on startup,
-  but you can aslo manually check check by running 'nc -l -w 0 -p <port>'. If
-  this immediately returns, instead of waiting for input, you cannot run
-  netcatchat in server mode. Client mode should still work.
+  but you can also manually check by running 'nc -l -w 0 -p <port>'. If this
+  immediately returns, instead of waiting for input, you cannot run netcatchat
+  in server mode. Client mode should still work. OpenBSD's implementation of
+  netcat is recommended.
 
-  OpenBSD's implementation of netcat is recommended.
+  Only printable ASCII characters are supported. Anything that is not in
+  [:print:] (see 'man tr') will be filtered out by both the server and clients.
 
 Options:
   -s
