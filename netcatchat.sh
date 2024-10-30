@@ -130,7 +130,7 @@ Options:
 
   -X proxy_protocol
     (client mode) The protocol to use for the proxy. Requires '-x'.
-    Must one of: '' (no proxy), 'socks4', 'socks5', or 'http'.
+    Must one of: 'socks4', 'socks5', or 'http'.
 
   -x proxy_address[:port]
     (client mode) Proxy address. Requires '-X'.
@@ -223,17 +223,20 @@ if [ 'server' == "$mode" ]; then
 fi
 # Client options.
 if [ 'client' == "$mode" ]; then
-    #TODO? validate server_address.
-    if [ 'true' == "$use_proxy" ] && [ 'socks4' != "$proxy_protocol" ] &&
-           [ 'socks5' != "$proxy_protocol" ] && [ 'http' != "$proxy_protocol" ]; then
+    if [ -z "$server_address" ]; then
         short_usage
-        fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X'; expected one of: '', 'socks4', 'socks5', 'http'"
+        fatal "'-i' was not specified or an empty server_address was supplied"
     fi
-    #TODO? validate proxy_address.
-    if [ 'true' == "$use_proxy" ] &&
-           { [ -z "$proxy_protocol" ] || [ -z "$proxy_address" ]; }; then
+    if [ 'true' == "$use_proxy" ]; then
+        if [ -z "$proxy_address" ]; then
+            short_usage
+            fatal "'-x' was not specified or an empty proxy_address was supplied"
+        fi
+        if [ 'socks4' != "$proxy_protocol" ] && [ 'socks5' != "$proxy_protocol" ] &&
+               [ 'http' != "$proxy_protocol" ]; then
         short_usage
-        fatal "proxy_protocol '$proxy_protocol' (supplied with '-X') and proxy_address '$proxy_address' (supplied with '-x') must either be both set or both empty"
+        fatal "invalid proxy_portocol '$proxy_protocol' supplied with '-X': expected one of: 'socks4', 'socks5', 'http'"
+        fi
     fi
 fi
 
