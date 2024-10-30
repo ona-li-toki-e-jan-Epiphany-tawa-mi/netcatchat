@@ -283,6 +283,8 @@ if [ 'client' == "$mode" ]; then
     else
         info "recieved port $client_port, reconnecting to $server_address:$client_port..."
 
+        # The initial message indicates that the user joined, and also prevents
+        # the server from timing out the port.
         intial_message='CONNECTED'
 
         if [ 'true' == "$use_proxy" ]; then
@@ -352,6 +354,7 @@ handle_server_port() {
     command_fifo="$1"
 
     free_ports="$client_ports"
+    ports_timeout_map=
 
     info "server port: started listening"
 
@@ -367,6 +370,8 @@ handle_server_port() {
             echo "$port" | nc -l -w 0 "$server_port" > /dev/null
 
             info "server port: gave out port '$port' to incoming client"
+            # shellcheck disable=2086 # We want word splitting.
+            ports_timeout_map="$(concat $ports_timeout_map "$port=$(date +%s)")"
         else
             test_port "$port"
             # -1 indicates that there are no ports left.
@@ -374,7 +379,7 @@ handle_server_port() {
             info "server port: did not give out port to incoming client; none are free"
         fi
 
-        # Handles commands from client port handlers.
+        # Handles commands from other subprocesses.
         echo "" > "$command_fifo" & # Prevents blocking.
         while read -r line; do
             # shellcheck disable=2086 # We want word splitting.
@@ -394,10 +399,88 @@ handle_server_port() {
                         free_ports="$(concat $free_ports "$argument")"
                         ;;
 
+                    # Prevents a ports that were given out from timing out.
+                    # $1 - port to stop from timing out.
+                    !notimeout)
+                        if [ -n "$ports_timeout_map" ]; then
+                            new_ports_timeout_map=
+
+                            for port_time in $ports_timeout_map; do
+                                old_IFS="$IFS"; IFS='='
+                                # shellcheck disable=2086 # We want word splitting.
+                                port="$(head $port_time)"
+                                IFS="$old_IFS"
+
+                                if [ "$argument" -ne "$port" ]; then
+                                    # shellcheck disable=2086 # We want word splitting.
+                                    new_ports_timeout_map="$(concat $new_ports_timeout_map "$port=$time")"
+                                fi
+                            done
+
+                            ports_timeout_map="$new_ports_timeout_map"
+                        fi
+                        ;;
+
                     *) fatal "unreachable" ;;
                 esac
             fi
         done < "$command_fifo"
+
+        #If we got a !notimeout on an 'avalible' port, that means that
+        #   someone has connected to it without first connecting to the
+        #   server port. Since the port is in use, we need to mark it as
+        #   active.
+#        for notimeout_port in "${timeoutless_notimeout_ports[@]}"; do
+#            # Freed ports are guaranteed inactive.
+#            if [ "${#freed_ports[$notimeout_port]}" -gt 0 ]; then
+#                continue
+#            fi
+#
+#            was_port_locked='false'
+#
+#            for (( i=0; i < ${#avalible_ports[@]}; ++i )); do
+#                avalible_port=${avalible_ports[$i]}
+#                if [ "$notimeout_port" = "$avalible_port" ]; then
+#                    was_port_locked='true'
+#                    unset -v 'avalible_ports[i]';
+#                    active_ports["$avalible_port"]="$avalible_port"
+#
+#                    log_info "Found unexpected connection on port $avalible_port; marking as active"
+#                    break
+#                fi
+#            done
+#
+#            if [ "$was_port_locked" = 'true' ]; then
+#                avalible_ports=("${avalible_ports[@]}")
+#            fi
+#        done
+
+        # Frees ports that have been given out but no client has connected to.
+        # TODO make port timeout configurable.
+        if [ -n "$ports_timeout_map" ]; then
+            new_ports_timeout_map=
+
+            for port_time in $ports_timeout_map; do
+                old_IFS="$IFS"; IFS='='
+                # shellcheck disable=2086 # We want word splitting.
+                port="$(head $port_time)"
+                # shellcheck disable=2086 # We want word splitting.
+                time="$(tail $port_time)"
+                IFS="$old_IFS"
+
+                current_time=$(date +%s)
+                if (( current_time - time > 3 )); then
+                    # shellcheck disable=2086 # We want word splitting.
+                    free_ports="$(concat $free_ports "$port")"
+                    info "server port: timed out port '$port'"
+                else
+                    # shellcheck disable=2086 # We want word splitting.
+                    new_ports_timeout_map="$(concat $new_ports_timeout_map "$port=$time")"
+                fi
+            done
+
+            ports_timeout_map="$new_ports_timeout_map"
+        fi
     done
 }
 
@@ -448,15 +531,15 @@ handle_client_port() {
 
 # Runs the proccess to handle routing chat messages between the client handlers.
 # $1 - the temporary directory with the client port input/output FIFOs.
+# $2 - the server port's command input fifo. Used to send commands to the server
+#      port handler
 handle_message_routing() {
     tmp="$1"
+    server_port_command_fifo="$2"
 
     while true; do
         for port in $client_ports; do
             output_fifo="$(client_port_to_output_fifo "$tmp" "$port")"
-
-            #has_message='false'
-            #has_message='true'
 
             # Some cursed logic to read with timeout.
             # Extra tr to filter out excess newlines.
@@ -470,11 +553,10 @@ handle_message_routing() {
                     input_fifo="$(client_port_to_input_fifo "$tmp" "$other_port")"
                     echo "$message" 1<> "$input_fifo"
                 done
-            fi
 
-            #if [ "$has_message" = 'true' ]; then
-            #    echo "!notimeout $client_port" > "$distributor_command_input_fifo" &
-            #fi
+                # Prevents port from timing out since a client is using it.
+                echo "!notimeout $port" > "$server_port_command_fifo" &
+            fi
         done
 
         sleep 0.1
@@ -523,7 +605,7 @@ if [ 'server' == "$mode" ]; then
     for port in $client_ports; do
         handle_client_port "$port" "$tmp" "$server_port_command_fifo" &
     done
-    handle_message_routing "$tmp" &
+    handle_message_routing "$tmp" "$server_port_command_fifo" &
 
     # Wait for subproccesses to start up to log as started.
     sleep 1
@@ -534,130 +616,3 @@ fi
 ################################################################################
 # Server END                                                                   #
 ################################################################################
-
-
-
-# ##
-# # Trims whitespace from the given strings.
-# # https://stackoverflow.com/a/3352015
-# #
-# # Parameters:
-# #   $* - the strings to trim.
-# # Returns:
-# #   The trimmed strings concatenated together.
-# #
-# trim_whitespace() {
-#     local result="$*"
-#     # remove leading whitespace characters
-#     result="${result#"${result%%[![:space:]]*}"}"
-#     # remove trailing whitespace characters
-#     result="${result%"${result##*[![:space:]]}"}"
-#     echo "$result"
-# }
-
-# ##
-# # Trims whitespace from the stdin.
-# # Only returns text if the resulting string is non-empty.
-# #
-# # Returns:
-# #   The trimmed input.
-# #
-# trim_whitespace_stdin() {
-#     local line
-#     while read -r line; do
-#         line=$(trim_whitespace "$line")
-
-#         if [ "${#line}" -gt 0 ]; then
-#             echo "$line"
-#         fi
-#     done
-# }
-
-# run_server() {
-
-
-#     ##
-#     # Handles telling clients which ports are avalible.
-#     #
-#     distribute_ports() {
-#         # Used to store ports that have been distributed, but not connected to,
-#         #   so that they can be freed automatically if no one connects.
-#         active_port_timeout_map=()
-
-#             avalible_ports+=("$1")
-#         }
-
-#         while true; do
-#             # Temporarily stores the ports freed with !free.
-#             freed_ports=()
-#             # Temporarily stores the ports marked with !notimeout that do not
-#             #   have a timeout.
-#             timeoutless_notimeout_ports=()
-#             # Handles commands from other processes ran by this script.
-#             echo "" > "$distributor_command_input_fifo" & # Prevents blocking.
-#             while read -r line; do
-#                 IFS=" " read -r -a command_arguments <<< "$line"
-
-#                 if [ "${#command_arguments[@]}" -ge 2 ]; then
-#                     port=${command_arguments[1]}
-
-#                     case "${command_arguments[0]}" in
-#                         # Prevents a used port from timing out.
-#                         !notimeout)
-#                             timeout="${active_port_timeout_map[$port]}"
-
-#                             if [ "${#timeout}" -gt 0 ]; then
-#                                 unset -v "active_port_timeout_map[$port]"
-#                             else
-#                                 timeoutless_notimeout_ports["$port"]=$port
-#                             fi
-#                         ;;
-#                     esac
-#                 fi
-#             done < "$distributor_command_input_fifo"
-
-#             # If we got a !notimeout on an 'avalible' port, that means that
-#             #   someone has connected to it without first connecting to the
-#             #   server port. Since the port is in use, we need to mark it as
-#             #   active.
-#             for notimeout_port in "${timeoutless_notimeout_ports[@]}"; do
-#                 # Freed ports are guaranteed inactive.
-#                 if [ "${#freed_ports[$notimeout_port]}" -gt 0 ]; then
-#                     continue
-#                 fi
-
-#                 was_port_locked='false'
-
-#                 for (( i=0; i < ${#avalible_ports[@]}; ++i )); do
-#                     avalible_port=${avalible_ports[$i]}
-#                     if [ "$notimeout_port" = "$avalible_port" ]; then
-#                         was_port_locked='true'
-#                         unset -v 'avalible_ports[i]';
-#                         active_ports["$avalible_port"]="$avalible_port"
-
-#                         log_info "Found unexpected connection on port $avalible_port; marking as active"
-#                         break
-#                     fi
-#                 done
-
-#                 if [ "$was_port_locked" = 'true' ]; then
-#                     avalible_ports=("${avalible_ports[@]}")
-#                 fi
-#             done
-
-#             # Frees ports that no one has connected to.
-#             for active_port in "${active_ports[@]}"; do
-#                 timeout=${active_port_timeout_map[$active_port]}
-
-#                 if [ "${#timeout}" -gt 0 ]; then
-#                     current_time=$(date +%s)
-#                     if (( current_time - timeout > 3 )); then
-#                         free_port "$active_port"
-#                         unset -v "active_port_timeout_map[$active_port]"
-#                         log_info "Timed out port $active_port"
-#                     fi
-#                 fi
-#             done
-#         done
-#     }
-#     distribute_ports &
