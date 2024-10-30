@@ -129,19 +129,24 @@ Options:
   -m motd
     (server mode) The message of the day to display when a client joins.
     Processed by printf. A single '%d', if present will be replaced with the
-    user's port number.
+    user's port number. Defaults to no motd (an empty string.)
+
+  -t port_timeout
+    (server mode) The time, in seconds, before a client port that was given out
+    is determined to be free if it recives no activity. Defaults to 5.
+    Must be a postive integer.
 
   -i server_address
     (client mode) Server address.
 
   -X proxy_protocol
-    (client mode) The protocol to use for the proxy. Requires '-x'.
-    Must one of: 'socks4', 'socks5', or 'http'.
+    (client mode) The protocol to use for the proxy.
+    Requires '-x'. Must one of: 'socks4', 'socks5', or 'http'.
 
   -x proxy_address[:port]
-    (client mode) Proxy address. Requires '-X'.
-    If the port is not specified, it defaults to 3128 for 'http' and 1080 for
-    'socks4' and 'socks5'
+    (client mode) Proxy address.  If the port is not specified, it defaults to
+    3128 for 'http' and 1080 for 'socks4' and 'socks5'.
+    Requires '-X'.
 
   -h
     Displays usage and exits.
@@ -179,6 +184,10 @@ client_ports=
 # The message of the day to display first when a user connects. Processed by
 # printf. A single %d, if present will be replace with the user's port number.
 motd=
+# The time, in seconds, before a port that was given out is determined to be
+# free if it recives no activity.
+# Must be a postive integer.
+port_timeout=5
 
 ## Client options.
 # Address of the server to connect to.
@@ -195,7 +204,7 @@ use_proxy='false'
 
 # Parsing.
 [ 0 -eq $# ] && usage && exit
-while getopts 'sp:c:m:i:X:x:hv' flag; do
+while getopts 'sp:c:m:t:i:X:x:hv' flag; do
     case "$flag" in
         # Global options.
         s) mode=server              ;;
@@ -203,6 +212,7 @@ while getopts 'sp:c:m:i:X:x:hv' flag; do
         # Server options.
         c) client_ports="$OPTARG"   ;;
         m) motd="$OPTARG"           ;;
+        t) port_timeout="$OPTARG"   ;;
         # Client options.
         i) server_address="$OPTARG" ;;
         X) proxy_protocol="$OPTARG" ;;
@@ -226,6 +236,10 @@ if [ 'server' == "$mode" ]; then
     if ! match_regex "^$port_regex( $port_regex)*\$" "$client_ports"; then
         short_usage
         fatal "invalid client_ports '$client_ports' supplied with -c; expected space-seperated list of port numbers"
+    fi
+    if ! match_regex '^[[:digit:]]+$' "$port_timeout" || [ 0 -eq "$port_timeout" ]; then
+        short_usage
+        fatal "invalid port_timeout '$port_timeout' supplied with -t; expected positive integer"
     fi
 fi
 # Client options.
@@ -472,7 +486,6 @@ handle_server_port() {
         fi
 
         # Frees ports that have been given out but no client has connected to.
-        # TODO make port timeout configurable.
         if [ -n "$ports_timeout_map" ]; then
             new_ports_timeout_map=
 
@@ -485,7 +498,7 @@ handle_server_port() {
                 IFS="$old_IFS"
 
                 current_time=$(date +%s)
-                if (( current_time - time > 3 )); then
+                if (( current_time - time > port_timeout )); then
                     # shellcheck disable=2086 # We want word splitting.
                     free_ports="$(concat $free_ports "$port")"
                     info "server port: timed out port '$port'"
