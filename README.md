@@ -78,13 +78,13 @@ nur.repos.ona-li-toki-e-jan-Epiphany-tawa-mi.netcatchat
 ## paltepuk netcatchat server
 
 I have a netcatchat server running on my paltepuk webserver, which you can
-connect to at `6ay2f2mmkogzz6mwcaxjttxl4jydnskavfaxgumeptwhhdjum3i6n3id.onion`
+connect to at `4blcq4arxhbkc77tfrtmy4pptf55gjbhlj32rbfyskl672v2plsmjcyd.onion`
 port 2000. To access it, you can use the following command as a template. This
 assumes you have the Tor daemon running and it's SOCKSv5 proxy is available on
 port 9050, modify for your setup. It has room for 25 people.
 
 ```
-./netcatchat.sh -X socks5 -x 127.0.0.1:9050 -i 6ay2f2mmkogzz6mwcaxjttxl4jydnskavfaxgumeptwhhdjum3i6n3id.onion -p 2000
+./netcatchat.sh -X socks5 -x 127.0.0.1:9050 -i 4blcq4arxhbkc77tfrtmy4pptf55gjbhlj32rbfyskl672v2plsmjcyd.onion -p 2000
 ```
 
 Keep in mind that the chat is COMPLETELY UNMODERATED. I take absolutely no
