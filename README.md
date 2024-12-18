@@ -17,7 +17,7 @@ Dependencies:
 - GNU coreutils (or compatible alternative.)
 
 There's a `flake.nix` you can use to generate a development enviroment with
-`nix develop path:.`.
+`nix develop`.
 
 Then, run the following command(s) to get started:
 

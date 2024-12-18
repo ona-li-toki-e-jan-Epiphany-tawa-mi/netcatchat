@@ -23,7 +23,6 @@
 {
   description = "netcatchat development environment";
 
-  # We use nixpkgs-unstable since the NUR does as well.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }:
@@ -38,7 +37,7 @@
       {
         devShells = forAllSystems ({ pkgs }: {
           default = with pkgs; mkShell {
-            nativeBuildInputs = [
+            packages = [
               netcat-openbsd
 
               shellcheck
