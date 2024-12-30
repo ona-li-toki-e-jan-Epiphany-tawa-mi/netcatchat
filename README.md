@@ -67,13 +67,8 @@ Only printable ASCII characters are supported. Anything that is not in [:print:]
 
 ## Installation
 
-You can install it with Nix from the NUR
-([https://github.com/nix-community/NUR](https://github.com/nix-community/NUR))
-with the following attribute:
-
-```nix
-nur.repos.ona-li-toki-e-jan-Epiphany-tawa-mi.netcatchat
-```
+You can install it with Nix from my personal package repository
+[https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/epitaphpkgs](https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/epitaphpkgs).
 
 ## paltepuk netcatchat server
 
@@ -91,17 +86,3 @@ Keep in mind that the chat is COMPLETELY UNMODERATED. I take absolutely no
 responsibility for what people say on it. Proceed at your own risk.
 
 The server will reset every 4 hours and any messages will be wiped.
-
-## Release notes
-
-- Complete rewrite.
-- Removed dependency on Bash, now should work with any (modernish) POSIX shell interpreter (tested with `bash --posix` and `dash`.
-- Removed depedency on procps functions (`pkill`, `pgrep`, etc..).
-- Vastly improved error handling.
-- Added ability to set server MOTD.
-- Added ability to set server port timeout.
-- Added automatic test for netcat compatibility.
-- More descriptive and useful logging and error messages.
-- Made usage information (running with `-h`) easier to read.
-- Improved filtering of control characters from chat messages (however only ASCII is supported now.)
-- Removed default values for the `-i`, `-p`, `-X`, and `-c` CLI options (now must be explicitly specified.)
