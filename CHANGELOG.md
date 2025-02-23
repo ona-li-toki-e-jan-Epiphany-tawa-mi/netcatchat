@@ -1,5 +1,9 @@
 # Changelog
 
+## Upcoming
+
+- Relicensed as GPLv3+ (was MIT.)
+
 ## 1.0.0
 
 - Complete rewrite.
