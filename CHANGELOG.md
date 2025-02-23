@@ -1,6 +1,6 @@
 # Changelog
 
-## Upcoming
+## 1.1.0
 
 - Relicensed as GPLv3+ (was MIT.)
 - Removed mentions of I2P and stunnel in help info since I don't know if they would work.
