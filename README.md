@@ -59,8 +59,7 @@ netcatchat is extremely basic; it does not come with chat filtering, protections
 against spamming, banning users, or any other fancy business.
 
 netcatchat does not provide encryption in of itself. It can, however, be used
-with a proxy that provides encryption, such as stunnel (http), Tor (socks5), or
-I2P (http).
+with a proxy that provides encryption, such as Tor (socks5.)
 
 Only printable ASCII characters are supported. Anything that is not in [:print:]
 (see 'man tr') will be filtered out by both the server and clients.

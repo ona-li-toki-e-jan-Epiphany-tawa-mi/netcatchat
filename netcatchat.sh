@@ -83,8 +83,7 @@ Forewarnings:
   protections against spamming, banning users, or any other fancy business.
 
   netcatchat does not provide encryption in of itself. It can, however, be used
-  with a proxy that provides encryption, such as stunnel (http), Tor (socks5),
-  or I2P (http).
+  with a proxy that provides encryption, such as Tor (socks5.)
 
   netcatchat will not run in server mode if the system's netcat implementation
   cannot accept a wait time of 0, which depends on which implementation is

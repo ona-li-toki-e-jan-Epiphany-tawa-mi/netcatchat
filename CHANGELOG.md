@@ -3,6 +3,7 @@
 ## Upcoming
 
 - Relicensed as GPLv3+ (was MIT.)
+- Removed mentions of I2P and stunnel in help info since I don't know if they would work.
 
 ## 1.0.0
 
