@@ -2,7 +2,7 @@
 
 # This file is part of netcatchat.
 #
-# Copyright (c) 2023-2024 ona-li-toki-e-jan-Epiphany-tawa-mi
+# Copyright (c) 2023-2025 ona-li-toki-e-jan-Epiphany-tawa-mi
 #
 # netcatchat is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -97,8 +97,7 @@ Forewarnings:
   [:print:] (see 'man tr') will be filtered out by both the server and clients.
 
 Options:
-  -s
-    Run in server mode.
+  -s    Run in server mode.
 
   -p server_port
     (server mode) netcatchat will listen on server_port for incoming clients and
@@ -132,11 +131,11 @@ Options:
     3128 for 'http' and 1080 for 'socks4' and 'socks5'.
     Requires '-X'.
 
-  -h
-    Displays usage and exits.
+  -h    Displays usage and exits.
 
-  -v
-    Displays version and exits.
+  -v    Displays version and exits.
+
+  -l    Displays license and exits.
 
 Exit status:
   Under normal operation, netcatchat, whether client or server, will not exit on
@@ -152,6 +151,33 @@ short_usage() {
 
 version() {
     echo "netcatchat V1.0.0"
+}
+
+license() {
+    echo "This file is part of netcatchat.
+
+Copyright (c) 2023-2025 ona-li-toki-e-jan-Epiphany-tawa-mi
+
+netcatchat is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+netcatchat is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+netcatchat. If not, see <https://www.gnu.org/licenses/>.
+
+Source (paltepuk):
+  https://paltepuk.xyz/cgit/netcatchat.git/about/
+  http://oytjumugnwsf4g72vemtamo72vfvgmp4lfsf6wmggcvba3qmcsta.b32.i2p/cgit/netcatchat.git/about/
+  http://4blcq4arxhbkc77tfrtmy4pptf55gjbhlj32rbfyskl672v2plsmjcyd.onion/cgit/netcatchat.git/about/
+
+Source (GitHub):,
+  https://github.com/ona-li-toki-e-jan-Epiphany-tawa-mi/netcatchat/
+"
 }
 
 ## Global options.
@@ -188,7 +214,7 @@ use_proxy='false'
 
 # Parsing.
 [ 0 -eq $# ] && usage && exit
-while getopts 'sp:c:m:t:i:X:x:hv' flag; do
+while getopts 'sp:c:m:t:i:X:x:hvl' flag; do
     case "$flag" in
         # Global options.
         s) mode=server              ;;
@@ -204,6 +230,7 @@ while getopts 'sp:c:m:t:i:X:x:hv' flag; do
         # Other.
         h) usage;       exit        ;;
         v) version;     exit        ;;
+        l) license;     exit        ;;
         *) short_usage; exit 1      ;;
     esac
 done
