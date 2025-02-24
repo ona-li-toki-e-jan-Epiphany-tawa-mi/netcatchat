@@ -150,7 +150,7 @@ short_usage() {
 }
 
 version() {
-    echo "netcatchat V1.0.0"
+    echo "netcatchat V1.1.0"
 }
 
 license() {
