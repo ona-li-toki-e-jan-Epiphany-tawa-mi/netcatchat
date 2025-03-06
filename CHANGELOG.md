@@ -1,5 +1,9 @@
 # Changelog
 
+## Upcoming
+
+- Fixed warn/error/fatal messages being printed to stdin rather than stdout.
+
 ## 1.1.0
 
 - Relicensed as GPLv3+ (was MIT.)

@@ -24,16 +24,16 @@ set -u
 ################################################################################
 
 info() {
-    echo "info:    $1";
+    echo "INFO:    $1"
 }
 warn() {
-    echo "warning: $1" 2>&1;
+    echo "WARNING: $1" 1>&2
 }
 error() {
-    echo "error:   $1" 2>&1;
+    echo "ERROR:   $1" 1>&2
 }
 fatal() {
-    echo "fatal:   $1" 2>&1;
+    echo "FATAL:   $1" 1>&2
     exit 1
 }
 
