@@ -23,20 +23,20 @@
     let
       lib = nixpkgs.lib;
 
-      forAllSystems = f: lib.genAttrs lib.systems.flakeExposed (system: f {
-        pkgs = import nixpkgs { inherit system; };
-      });
+      forAllSystems = f:
+        lib.genAttrs lib.systems.flakeExposed
+        (system: f { pkgs = import nixpkgs { inherit system; }; });
 
-    in
-      {
-        devShells = forAllSystems ({ pkgs }: {
-          default = with pkgs; mkShell {
+    in {
+      devShells = forAllSystems ({ pkgs }: {
+        default = with pkgs;
+          mkShell {
             packages = [
               netcat-openbsd
 
               shellcheck
             ];
           };
-        });
-      };
-  }
+      });
+    };
+}
